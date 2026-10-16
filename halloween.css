@@ -161,12 +161,13 @@
 .hw-candy-fall{left:66%;top:0;opacity:0;animation:hw-candyfall 40s ease-in infinite;animation-delay:-5s}
 @keyframes hw-candyfall{0%,80%{opacity:0;transform:translateY(-30px) rotate(0)}81%{opacity:.9}97%{opacity:.9;transform:translateY(calc(100vh - 20px)) rotate(540deg)}100%{opacity:0;transform:translateY(calc(100vh - 20px)) rotate(560deg)}}
 /* ---- lightning (seizure-safe: two short flashes within 300ms, then 30-60s rest) ---- */
-.hw-flash{inset:0;background:rgba(225,215,255,1);opacity:0}
-.hw-flash.hw-strike{animation:hw-flash .32s linear 1}
-@keyframes hw-flash{0%{opacity:0}8%{opacity:.16}25%{opacity:0}50%{opacity:.12}75%,100%{opacity:0}}
+.hw-flash{inset:0;background:radial-gradient(ellipse 120% 85% at 50% -10%,rgba(232,224,255,1) 0%,rgba(220,205,255,.6) 45%,rgba(210,195,255,0) 80%);opacity:0}
+.hw-flash.hw-strike{animation:hw-flash .9s 1}
+/* soft ~60ms rise, first glow .11, dip, weaker second flicker .06, slow ~550ms fade */
+@keyframes hw-flash{0%{opacity:0;animation-timing-function:ease-out}6.7%{opacity:.11;animation-timing-function:ease-in}22%{opacity:.03;animation-timing-function:ease-out}30%{opacity:.06;animation-timing-function:ease-out}100%{opacity:0}}
 .hw-bolt{top:0;opacity:0;filter:drop-shadow(0 0 8px rgba(200,180,255,.8))}
-.hw-bolt.hw-strike{animation:hw-bolt .6s ease-out 1}
-@keyframes hw-bolt{0%{opacity:0}8%{opacity:.38}25%{opacity:.1}50%{opacity:.3}100%{opacity:0}}
+.hw-bolt.hw-strike{animation:hw-bolt .9s ease-out 1}
+@keyframes hw-bolt{0%{opacity:0}6.7%{opacity:.22}22%{opacity:.06}30%{opacity:.13}100%{opacity:0}}
 /* ---- mummy wraps (card corner, overlay) ---- */
 .hw-mummy{position:absolute;left:-3px;top:-3px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
 /* ---- eyes ---- */
