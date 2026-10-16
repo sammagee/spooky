@@ -5,10 +5,15 @@ Puts a Halloween overlay on any website: glossy orange and toxic-green slime dri
 ![screenshot](docs/screenshot.jpg)
 
 ## Slime rendering
-Each slime strip is one continuous band, flush with the edge, with dense tapered drips that end in small teardrop tips. A gooey SVG filter (`feGaussianBlur` plus a `feColorMatrix` alpha threshold) fuses the drips into the band. Then `feOffset`/`feComposite` add a darker lower rim, `feSpecularLighting` adds wet gloss, a white specular streak runs along the band and down the drips, and a blurred flood adds a colored glow. On cards the slime starts at the top-right corner, wraps over it and a little way down the right border, and has a pumpkin sitting on it. Progress-bar fills are replaced by a gooey slime bar with short drips.
-
-## Colours
-The colours are calibrated to sit slightly darker than the reference. Green is #4fa82a–#5fbf30 with an olive rim (#2f5e18), and orange is #d0601a–#dd7424 with a rim of #8a3d12. The glow and the specular highlights are kept low but still look glossy. The top band is a thin, green-only strip with sparse, irregular drips: roughly one every 60–100px, some in clustered pairs, a few long (30–45px) and most short nubs. Card corners get 3–5 drips and progress bars 3–6. Card and progress-bar slime keep the colour assigned to each card.
+`slimeSVG(width, color, seed, kind)` is a seeded generator. For each strip it builds ONE continuous path made only of smooth cubic Béziers: a wavy band that sags slightly between drips, with drips that flow out through concave shoulders, taper at the neck and end in round bulbs. There is no threshold filter, so the edges stay crisp and anti-aliased.
+- **Shading:** a vertical gradient (light top, saturated middle, slightly darker bottom), a faint inner luminance, a soft blurred specular streak along the upper band, and small highlights on the bulbs.
+- **Glow:** a tight same-hue halo made of two stacked CSS `drop-shadow`s (1.2px and 3.5px).
+- **Colours:** sampled from the reference. Orange is #e96c1a and green is #6cc338.
+- **kind = top:** the orange band runs from the left to about 52% of the width. The green band starts after a 6px gap, with no blending between them.
+- **kind = card:** slime sits at the top-right corner and thins out toward the left. It wraps a short way down the right border and has 3–5 drips.
+- **kind = bar:** the progress-bar fill becomes a goo bar with short, fairly regular drips.
+- **Card styling:** cards follow the reference's order of colours and toppers: a pumpkin, a ghost plus pumpkin, a tombstone, or a bat. Alert banners get an orange border and a pumpkin or ghost by their button.
+- **Graveyard:** dashed empty-state cards get a low-contrast graveyard and haunted-house silhouette. It is drawn behind the card content (`z-index:-1` inside an isolated card).
 
 ## Pumpkins and spiders
 - **Jack-o'-lanterns:** each one has a radial halo layer and a blurred face-glow layer. Their opacity (and the halo's scale) breathes on a 2.6–4s ease-in-out cycle with small irregular flickers. Each pumpkin has its own duration and phase.

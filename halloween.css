@@ -26,7 +26,7 @@
 .hw-drop{transform-box:fill-box;transform-origin:center;opacity:0;animation:hw-drop 9s ease-in infinite}
 .hw-card-deco{position:absolute!important;inset:0;pointer-events:none!important;z-index:5;overflow:visible}
 .hw-card-deco *{pointer-events:none!important}
-.hw-card-slime{position:absolute;top:-1px;right:-2px}
+.hw-card-slime{position:absolute;top:-1px;right:-1px}
 .hw-card-slime svg,.hw-bar-slime svg{display:block}
 .hw-card-slime{border-top-right-radius:inherit;overflow:visible}
 .hw-pumpkin{position:absolute;right:18px;top:-22px;z-index:2;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
@@ -41,12 +41,12 @@
 .hw-pumpkin .hw-face{opacity:.92}
 .hw-mini-ghost{position:absolute;right:30px;top:-22px;animation:hw-float 6s ease-in-out infinite;filter:drop-shadow(0 0 6px rgba(200,200,255,.7))}
 .hw-card-web{position:absolute;right:0;bottom:0;transform:scaleY(-1);opacity:.6}
-.hw-haunt{display:flex;align-items:flex-end;justify-content:center;opacity:.95}
+.hw-haunt{z-index:-1!important;opacity:1}
 .hw-haunt svg{position:absolute;left:2px;bottom:2px}
 .hw-window{animation:hw-flicker 4s steps(1) infinite}
-.hw-bar-slime{position:absolute;z-index:3;pointer-events:none!important;filter:drop-shadow(0 0 4px rgba(0,0,0,.4))}
+.hw-bar-slime{position:absolute;z-index:3;pointer-events:none!important}
 .hw-bar-slime *{pointer-events:none!important}
-@keyframes hw-stretch{0%{transform:scaleY(1)}100%{transform:scaleY(1.12)}}
+@keyframes hw-stretch{0%{transform:scaleY(1)}100%{transform:scaleY(1.05)}}
 @keyframes hw-drop{0%,70%{opacity:0;transform:translateY(0) scale(.6)}74%{opacity:1;transform:translateY(2px) scale(1)}100%{opacity:0;transform:translateY(70px) scale(.8,1.2)}}
 @keyframes hw-spider{0%,100%{transform:translateY(0)}50%{transform:translateY(40px)}}
 @keyframes hw-sway{from{transform:rotate(-6deg)}to{transform:rotate(6deg)}}
@@ -72,3 +72,14 @@
 @keyframes hw-fog{from{transform:translateX(0)}to{transform:translateX(25%)}}
 @keyframes hw-grain{0%{transform:translate(0,0)}25%{transform:translate(-30px,20px)}50%{transform:translate(20px,-40px)}75%{transform:translate(-50px,-10px)}}
 @keyframes hw-dim{0%,100%{opacity:1}93%{opacity:.8}94%{opacity:1}96%{opacity:.85}}
+
+/* same-hue tight luminous halo hugging the slime */
+.hw-glow svg{filter:drop-shadow(0 0 1.2px rgba(var(--gc),.9)) drop-shadow(0 0 3.5px rgba(var(--gc),.45))}
+.hw-green-sp .hw-sp-body{filter:drop-shadow(0 0 3px rgba(108,195,56,.9))}
+.hw-mini-ghost,.hw-peek{filter:drop-shadow(0 0 6px rgba(190,170,255,.65))!important}
+.hw-in-banner{position:absolute!important;right:92px!important;top:50%!important;margin-top:-15px;left:auto!important}
+.hw-mini-ghost.hw-in-banner{animation:none}
+.hw-card-tomb{position:absolute;right:20px;top:-22px}
+.hw-card-bat{position:absolute;right:4px;top:-12px}
+.hw-mini-ghost{right:44px!important;top:-20px!important}
+.hw-mini-ghost.hw-in-banner,.hw-pumpkin.hw-in-banner{right:104px!important;top:50%!important;margin-top:-14px}

@@ -8,7 +8,7 @@
     green:  { hi: '#c9ff8a', mid: '#6be03a', lo: '#2f9a12', glow: '#6be03a' },
     purple: { hi: '#d9b8ff', mid: '#9b5cf0', lo: '#5a2ca8', glow: '#9b5cf0' }
   };
-  let uid = 0, enabled = false, observer = null, timer = null, root = null;
+  let uid = 0, cardSeq = 0, enabled = false, observer = null, timer = null, root = null;
   const decorated = new WeakSet(), barsDone = new WeakSet();
   const added = []; // nodes we inserted into page elements
   const touched = []; // [el, prevStyleText]
@@ -27,94 +27,90 @@
   }
   // Gooey slime: one continuous band + dense tapered drips fused by an alpha-threshold "goo" filter,
   // then shaded (dark lower rim, specular highlight, colored glow).
+  // Colours sampled from the reference slime pixels.
   const SLIME = {
-    // calibrated against reference pixels (orange mid ~#e96c1a, rim ~#9e4817; green mid ~#6cc338)
-    orange: { hi: '#dd7424', mid: '#d0601a', lo: '#a24812', rim: '#8a3d12' },
-    green:  { hi: '#5fbf30', mid: '#4fa82a', lo: '#3a7d1e', rim: '#2f5e18' },
-    purple: { hi: '#d9b8ff', mid: '#9b5cf0', lo: '#5a2ca8', rim: '#3a1a70', glow: '#9b5cf0' }
+    orange: { hi: '#f7a04e', mid: '#e96c1a', lo: '#c2520c', glow: '233,108,26' },
+    green:  { hi: '#9ee070', mid: '#6cc338', lo: '#4c9724', glow: '108,195,56' },
+    purple: { hi: '#d9b8ff', mid: '#9b5cf0', lo: '#5a2ca8', glow: '155,92,240' }
   };
-  function dripSVG(w, color, seed, { band = 10, maxLen = 40, density = 1, fall = true, side = 0, wave = 0.35, taper = 0, fat = 1, gap = 0 } = {}) {
-    const mix = color === 'mix', id = ++uid, r = rng(seed * 7919 + 13);
-    const c = SLIME[mix ? 'orange' : color];
-    // colour for a drip at x (mix: noisy smoothstep orange→green across a wide middle zone)
-    const pick = x => { if (!mix) return `url(#g${id})`; const f = x / w + (r() - .5) * .22;
-      const t = Math.min(1, Math.max(0, (f - .34) / .32)); return r() < t * t * (3 - 2 * t) ? `url(#gG${id})` : `url(#gO${id})`; };
-    const H = band + maxLen + 12 + side;
-    // band with a wavy lower edge (top is flush with y=0, extended above to hide the goo blur edge)
-    const th = xx => taper ? Math.max(0.12, Math.min(1, xx / (taper * w))) : 1; // band thickness ramp
-    let d = `M-2,0 L${w + 3},0 L${w + 3},${band + side}`;
-    if (side) d += ` C${w - 2},${band + side * 0.7} ${w - 3},${band + 4} ${w - 8},${band}`;
-    const steps = Math.max(3, Math.round(w / 18));
-    for (let i = steps - 1; i >= 0; i--) {
-      const x = (i / steps) * w, y = band * th(x) * (1 - wave / 2 + r() * wave);
-      d += ` Q${x + w / steps / 2},${y + band * th(x) * 0.25} ${x},${y}`;
+  const f1 = v => v.toFixed(1);
+  /* Seeded drip layout. Returns [{x, hw, len}] spaced irregularly like the reference. */
+  function layoutDrips(w, r, { spacing = [24, 46], hw = [2.6, 3.6], len = [8, 30], start = 8, end = 8, long = .35 } = {}) {
+    const out = []; let x = start + r() * spacing[0] * .5;
+    while (x < w - end) {
+      const L = r() < long ? len[1] * (.7 + r() * .3) : len[0] + r() * (len[1] - len[0]) * .45;
+      out.push({ x, hw: hw[0] + r() * (hw[1] - hw[0]), len: L });
+      x += spacing[0] + r() * (spacing[1] - spacing[0]);
     }
-    d += ` L-2,${band * th(0)} Z`;
-    let drips = '', drops = '', streaks = '';
-    let x = 3 + r() * 6, n = 0;
-    const xmax = w - (side ? 10 : 3);
-    while (x < xmax) {
-      const roll = gap ? -1 : (n++ % 4 === 2) ? 0.95 : r();
-      const sparseLen = () => { const q = r(); return q < .28 || n++ % 4 === 1 ? Math.max(30, maxLen * (.72 + r() * .28)) : 4 + r() * 8; };
-      const len = roll < 0 ? Math.min(maxLen, sparseLen()) : (roll < 0.45 ? 0.08 + r() * 0.2 : roll < 0.8 ? 0.3 + r() * 0.35 : 0.7 + r() * 0.3) * maxLen;
-      const t = Math.min(band * 0.6, (2.6 + r() * 2.8) * fat + len * 0.05) * (taper ? Math.max(.5, th(x)) : 1); // half-width at root (thin streams)
-      const tip = t * (0.55 + r() * 0.2); // teardrop end, only a little wider than the stream
-      const y0 = band * th(x) * 0.6, yE = band * th(x) + len * (taper ? th(x) : 1);
-      drips += `<path fill="${pick(x)}" d="M${x - t * 1.6},${y0} C${x - t * 0.6},${y0 + 2} ${x - t * 0.55},${yE - tip * 2} ${x - tip},${yE - tip * 0.6}
-        A${tip},${tip * 1.15} 0 1 0 ${x + tip},${yE - tip * 0.6} C${x + t * 0.55},${yE - tip * 2} ${x + t * 0.6},${y0 + 2} ${x + t * 1.6},${y0} Z"/>`;
-      if (len > maxLen * 0.3) streaks += `<path d="M${x - t * 0.35},${band + 1} L${x - tip * 0.35},${yE - tip * 0.9}" />`;
-      if (fall && len > maxLen * 0.6 && r() < 0.35)
-        drops += `<ellipse class="hw-drop" cx="${x}" cy="${yE + 1}" rx="${tip * 0.8}" ry="${tip}" fill="${mix ? (x / w > .5 ? SLIME.green.mid : SLIME.orange.mid) : c.mid}" style="animation-duration:${(6 + r() * 7).toFixed(1)}s;animation-delay:${(-r() * 9).toFixed(1)}s"/>`;
-      if (gap) x += r() < .25 ? 2 * t + 4 + r() * 6 : gap * (.45 + r() * 1.1); // clustered pairs + irregular gaps
-      else x += (2 * t + 4 + r() * (len > maxLen * 0.5 ? 14 : 8)) / density;
-    }
-    const dur = (6 + r() * 4).toFixed(1);
-    return `<svg xmlns="${NS}" width="${w}" height="${H}" viewBox="0 0 ${w} ${H}" style="overflow:visible">
-    <defs>
-      <linearGradient id="g${id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${band + maxLen * 0.6}">
-        <stop offset="0" stop-color="${c.hi}"/><stop offset=".25" stop-color="${c.mid}"/><stop offset="1" stop-color="${c.lo}"/></linearGradient>
-      ${['O', 'G'].map(k => { const q = SLIME[k === 'O' ? 'orange' : 'green']; return `<linearGradient id="g${k}${id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${band + maxLen * 0.6}">
-        <stop offset="0" stop-color="${q.hi}"/><stop offset=".25" stop-color="${q.mid}"/><stop offset="1" stop-color="${q.lo}"/></linearGradient>`; }).join('')}
-      <linearGradient id="gH${id}" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0" stop-color="#e8650a"/><stop offset=".14" stop-color="#ee7a1c"/><stop offset=".26" stop-color="#e05f08"/>
-        <stop offset=".37" stop-color="#ea6c10"/><stop offset=".43" stop-color="#b9a120"/><stop offset=".47" stop-color="#e3700e"/>
-        <stop offset=".52" stop-color="#8fbf1f"/><stop offset=".56" stop-color="#d2861a"/><stop offset=".6" stop-color="#a9a21c"/><stop offset=".66" stop-color="#62c41f"/>
-        <stop offset=".76" stop-color="#55b81c"/><stop offset=".88" stop-color="#6fd030"/><stop offset="1" stop-color="#5cc41f"/></linearGradient>
-      <linearGradient id="sh${id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${band * 1.1}">
-        <stop offset="0" stop-color="#fff" stop-opacity=".1"/><stop offset=".35" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#2a0d00" stop-opacity=".35"/></linearGradient>
-      <filter id="f${id}" x="-5%" y="-30%" width="110%" height="160%" color-interpolation-filters="sRGB">
-        <feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="b"/>
-        <feColorMatrix in="b" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 22 -9" result="goo"/>
-        <feComposite in="SourceGraphic" in2="goo" operator="atop" result="body"/>
-        <feOffset in="goo" dy="-2.5" result="up"/>
-        <feComposite in="goo" in2="up" operator="out" result="rimA"/>
-        <feGaussianBlur in="rimA" stdDeviation=".8" result="rimB"/>
-        <feFlood flood-color="${mix ? '#5a3a0a' : c.rim}" flood-opacity=".9"/><feComposite in2="rimB" operator="in" result="rim"/>
-        <feGaussianBlur in="goo" stdDeviation="1.8" result="bump"/>
-        <feSpecularLighting in="bump" surfaceScale="3" specularConstant=".28" specularExponent="60" lighting-color="#fff" result="spec">
-          <feDistantLight azimuth="240" elevation="30"/></feSpecularLighting>
-        <feComposite in="spec" in2="goo" operator="in" result="specIn"/>
-        <feGaussianBlur in="body" stdDeviation="2.2" result="gl"/>
-        <feColorMatrix in="gl" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 .18 0" result="glow"/>
-        <feMerge><feMergeNode in="glow"/><feMergeNode in="body"/><feMergeNode in="rim"/><feMergeNode in="specIn"/></feMerge>
-      </filter>
-    </defs>
-    <g filter="url(#f${id})" fill="url(#g${id})"><g class="hw-goo" style="animation-duration:${dur}s"><path d="${d}" fill="${mix ? `url(#gH${id})` : `url(#g${id})`}"/>${mix ? tongues(w, band, r, id) : ''}<path d="${d}" fill="url(#sh${id})"/>${drips}</g>${drops}</g>
-    <g stroke="#fff" fill="none" stroke-linecap="round" pointer-events="none">
-      <path d="M${taper ? w * taper * 0.6 : 2},${(band * 0.3).toFixed(1)} Q${w * 0.55},${band * 0.18} ${w * 0.55},${band * 0.34} T${w - 4},${band * 0.3}" stroke-opacity=".18" stroke-width=".8"/>
-      <g class="hw-goo" style="animation-duration:${dur}s" stroke-opacity=".14" stroke-width=".7">${streaks}</g></g></svg>`;
+    return out;
   }
+  /* One continuous smooth slime path: wavy band + drips with concave shoulders, tapered necks and round bulbs.
+     thick(x) gives band thickness at x (lets card slime thin out to the left). side = length it wraps down the right edge. */
+  function slimePath(w, drips, thick, r, side = 0) {
+    let d = `M0,0 L${f1(w)},0`;
+    if (side) { const t = thick(w); d += ` L${f1(w)},${f1(t + side)} C${f1(w)},${f1(t + side + 4)} ${f1(w - t * .9)},${f1(t + side + 4)} ${f1(w - t * .9)},${f1(t + side - 2)} C${f1(w - t * .9)},${f1(t + 4)} ${f1(w - t * 1.2)},${f1(t)} ${f1(w - t * 1.8)},${f1(t)}`; }
+    else d += ` L${f1(w)},${f1(thick(w))}`;
+    let cx = side ? w - thick(w) * 1.8 : w, cy = thick(cx);
+    const ds = [...drips].sort((p, q) => q.x - p.x);
+    const scallopTo = (x2) => { // smooth wavy band edge between drips (bulges down slightly, like goo sagging)
+      const y2 = thick(x2), mx = (cx + x2) / 2, sag = Math.min(4.5, Math.abs(cx - x2) * .14) * (r() < .75 ? 1 : -.4);
+      d += ` C${f1(cx - (cx - x2) * .35)},${f1(cy + sag)} ${f1(x2 + (cx - x2) * .35)},${f1(y2 + sag)} ${f1(x2)},${f1(y2)}`;
+      cx = x2; cy = y2; void mx;
+    };
+    for (const { x, hw, len } of ds) {
+      if (x + hw * 2.4 > cx) continue;
+      const b = thick(x), sh = hw * 2.3, neck = hw * .78, rb = hw * 1.05, yE = b + len;
+      scallopTo(x + sh);
+      // right shoulder (concave) into neck, neck tapers down, swells into bulb
+      d += ` C${f1(x + hw * 1.1)},${f1(b)} ${f1(x + neck)},${f1(b + 1.5)} ${f1(x + neck)},${f1(b + Math.min(len * .45, 6))}`;
+      d += ` C${f1(x + neck)},${f1(b + len * .7)} ${f1(x + rb)},${f1(yE - rb * 1.9)} ${f1(x + rb)},${f1(yE - rb * .2)}`;
+      d += ` C${f1(x + rb)},${f1(yE + rb * .75)} ${f1(x - rb)},${f1(yE + rb * .75)} ${f1(x - rb)},${f1(yE - rb * .2)}`;
+      d += ` C${f1(x - rb)},${f1(yE - rb * 1.9)} ${f1(x - neck)},${f1(b + len * .7)} ${f1(x - neck)},${f1(b + Math.min(len * .45, 6))}`;
+      d += ` C${f1(x - neck)},${f1(b + 1.5)} ${f1(x - hw * 1.1)},${f1(b)} ${f1(x - sh)},${f1(b)}`;
+      cx = x - sh; cy = b;
+    }
+    scallopTo(0);
+    return d + ' Z';
+  }
+  /* Build a slime strip SVG. kind: 'top' | 'card' | 'bar'. */
+  function slimeSVG(w, color, seed, kind, { h = 10, side = 0, maxLen } = {}) {
+    const c = SLIME[color], id = ++uid, r = rng(seed * 7919 + 13);
+    let drips, thick;
+    if (kind === 'top') {
+      drips = layoutDrips(w, r, { spacing: [20, 40], hw: [3, 4.4], len: [1.5, maxLen || 34], long: .34 });
+      const ph = r() * 6; thick = x => h + Math.sin(x / 31 + ph) * 1.8 + Math.sin(x / 11 + ph * 2) * .9;
+    } else if (kind === 'card') {
+      drips = layoutDrips(w, r, { spacing: [w * .11, w * .2], hw: [3.4, 6],  len: [10, maxLen || 38], start: w * .28, end: h * 2.2, long: .5 });
+      thick = x => { const t = Math.min(1, Math.max(0, x / (w * .4))); return 1.2 + (h - 1.2) * (t * t * (3 - 2 * t)) + (Math.sin(x / 11) * 1.6 + Math.sin(x / 5.3) * .8) * t; };
+    } else { // bar: fill becomes goo, short regular drips
+      drips = layoutDrips(w, r, { spacing: [24, 40], hw: [2.4, 3.2], len: [5, maxLen || 13], start: 10, end: 8, long: .3 });
+      thick = x => h + Math.sin(x / 19) * .5;
+    }
+    const d = slimePath(w, drips, thick, r, side);
+    const maxD = Math.max(...drips.map(q => q.len), 0), H = h + maxD + side + 8;
+    const hl = kind === 'card' ? w * .45 : 3;
+    // drops that occasionally detach from the longest drips
+    const drops = drips.filter(q => q.len > maxD * .7).slice(0, 2).map(q =>
+      `<ellipse class="hw-drop" cx="${f1(q.x)}" cy="${f1(thick(q.x) + q.len)}" rx="${f1(q.hw * .8)}" ry="${f1(q.hw * 1)}" fill="${c.mid}" style="animation-duration:${(7 + r() * 6).toFixed(1)}s;animation-delay:${(-r() * 9).toFixed(1)}s"/>`).join('');
+    const bulbs = drips.filter(q => q.len > 9).map(q => `<ellipse cx="${f1(q.x - q.hw * .35)}" cy="${f1(thick(q.x) + q.len - q.hw * .3)}" rx="${f1(q.hw * .3)}" ry="${f1(q.hw * .5)}" fill="#fff" opacity=".35"/>`).join('');
+    return `<svg xmlns="${NS}" width="${f1(w)}" height="${f1(H)}" viewBox="0 0 ${f1(w)} ${f1(H)}" style="overflow:visible;--gc:${c.glow}" shape-rendering="geometricPrecision">
+      <defs>
+        <linearGradient id="g${id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${f1(h + maxD)}">
+          <stop offset="0" stop-color="${c.hi}"/><stop offset="${f1(Math.min(.6, h / (h + maxD) * .9))}" stop-color="${c.mid}"/><stop offset="1" stop-color="${c.lo}"/></linearGradient>
+        <radialGradient id="in${id}" cx=".5" cy=".2" r=".7"><stop offset="0" stop-color="#fff2c0" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+        <filter id="hb${id}" x="-10%" y="-200%" width="120%" height="500%"><feGaussianBlur stdDeviation="1.3"/></filter>
+      </defs>
+      <g class="hw-goo">
+        <path d="${d}" fill="url(#g${id})"/>
+        <path d="${d}" fill="url(#in${id})"/>
+        <path d="M${f1(hl)},${f1(thick(hl) * .35)} ${Array.from({ length: 8 }, (_, i) => { const x = hl + (w - hl - 4) * (i + 1) / 8; return `L${f1(x)},${f1(thick(x) * .35)}`; }).join(' ')}"
+          stroke="#fff" stroke-opacity=".22" stroke-width="${f1(Math.max(1.2, h * .28))}" stroke-linecap="round" fill="none" filter="url(#hb${id})"/>
+        ${bulbs}
+      </g>${drops}</svg>`;
+  }
+  // backwards-compatible wrapper
+  const dripSVG = (w, color, seed, o = {}) => slimeSVG(w, color, seed, o.kind || 'card', o);
 
-  // irregular interleaving blobs of the opposite colour near the orange/green boundary
-  function tongues(w, band, r, id) {
-    let o = '';
-    for (let i = 0; i < 9; i++) {
-      const f = .34 + r() * .32, green = r() < (f - .3) / .4;
-      o += `<ellipse cx="${(f * w).toFixed(0)}" cy="${(band * (.35 + r() * .4)).toFixed(1)}" rx="${(10 + r() * 22).toFixed(0)}" ry="${(band * (.3 + r() * .3)).toFixed(1)}"
-        fill="${green ? SLIME.green.mid : SLIME.orange.mid}" fill-opacity="${(.8 + r() * .2).toFixed(2)}"/>`;
-    }
-    return o;
-  }
   const pumpkinSVG = (s = 30) => `<svg xmlns="${NS}" width="${s}" height="${s}" viewBox="0 0 40 40">
     <defs><radialGradient id="pk${++uid}" cx=".4" cy=".35" r=".7"><stop offset="0" stop-color="#ffb347"/><stop offset=".6" stop-color="#f26b0f"/><stop offset="1" stop-color="#9c3c00"/></radialGradient></defs>
     <path d="M19 9 C19 5 21 3 24 2 L25 4 C22 5 21 7 21 9Z" fill="#4b7a1e"/>
@@ -127,18 +123,20 @@
     <path d="M10 27 Q20 34 30 27 L27 28 L25 31 L23 29 L20 32 L17 29 L15 31 L13 28Z"/></g>
     <ellipse cx="14" cy="15" rx="2.5" ry="4" fill="#fff" opacity=".22"/></svg>`;
 
-  const spiderSVG = () => `<svg xmlns="${NS}" width="30" height="30" viewBox="0 0 30 30" overflow="visible">
-    <g stroke="#2a2a2a" stroke-width="1.8" fill="none" stroke-linecap="round">
-    <g class="hw-legs hw-legs-l"><path d="M12 14 L4 8 L1 13 M12 18 L5 23 L3 28"/></g><g class="hw-legs hw-legs-l2"><path d="M12 16 L3 16 L1 21"/></g>
-    <g class="hw-legs hw-legs-r"><path d="M18 14 L26 8 L29 13 M18 18 L25 23 L27 28"/></g><g class="hw-legs hw-legs-r2"><path d="M18 16 L27 16 L29 21"/></g></g>
-    <ellipse cx="15" cy="18" rx="6" ry="7" fill="#151515" stroke="#3a3a3a" stroke-width=".6"/><circle cx="15" cy="10.5" r="4" fill="#1d1d1d"/>
-    <circle cx="13.6" cy="10" r="1" fill="#ff3b1a"/><circle cx="16.4" cy="10" r="1" fill="#ff3b1a"/><ellipse cx="13" cy="16" rx="1.5" ry="2.5" fill="#fff" opacity=".18"/></svg>`;
+  // small spider with thin, bent legs; green variant glows like the ones under the reference's top band
+  const spiderSVG = (green = false) => { const body = green ? '#5fc22e' : '#121212', leg = green ? '#5fc22e' : '#1c1c1c';
+    return `<svg xmlns="${NS}" width="26" height="26" viewBox="0 0 30 30" overflow="visible">
+    <g stroke="${leg}" stroke-width="1.05" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <g class="hw-legs hw-legs-l"><path d="M13 14 L7 9 L4 13 M13 18 L7 21 L5 27"/></g><g class="hw-legs hw-legs-l2"><path d="M13 16 L6 15 L2 19 M13 15 L8 11.5 L3 9"/></g>
+    <g class="hw-legs hw-legs-r"><path d="M17 14 L23 9 L26 13 M17 18 L23 21 L25 27"/></g><g class="hw-legs hw-legs-r2"><path d="M17 16 L24 15 L28 19 M17 15 L22 11.5 L27 9"/></g></g>
+    <ellipse cx="15" cy="18" rx="3.6" ry="4.4" fill="${body}"/><circle cx="15" cy="12.6" r="2.6" fill="${body}"/>
+    <ellipse cx="14" cy="16.5" rx="1" ry="1.6" fill="#fff" opacity="${green ? .35 : .15}"/></svg>`; };
 
   /* ---------- spider motion: seeded, JS-driven, transform-only ---------- */
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const spiders = []; let rafId = 0;
   function addHanging(x, len, seed) {
-    const n = el('div', 'hw-spider', `<div class="hw-thread"></div><div class="hw-sp-body">${spiderSVG()}</div>`, `left:${x}%`);
+    const n = el('div', 'hw-spider' + (seed % 2 ? ' hw-green-sp' : ''), `<div class="hw-thread"></div><div class="hw-sp-body">${spiderSVG(seed % 2 === 1)}</div>`, `left:${x}%`);
     root.appendChild(n);
     const sp = { kind: 'hang', n, thread: n.firstChild, body: n.lastChild, r: rng(seed), len, target: len, min: 25, max: 60 + (x % 30) * 4,
       ang: 0, av: 0, rot: 0, rotT: 0, next: 0, moving: false };
@@ -210,37 +208,47 @@
   }
   function stopSpiders() { cancelAnimationFrame(rafId); rafId = 0; spiders.length = 0; }
 
-  function webSVG(s, flip) {
-    const spokes = 7, rings = 6; let p = '';
-    for (let i = 0; i <= spokes; i++) { const a = (i / spokes) * Math.PI / 2; p += `M0,0 L${Math.cos(a) * s},${Math.sin(a) * s} `; }
+  function webSVG(s, flip) { // fine radial corner web with sagging concentric threads
+    const spokes = 9, rings = 8; let p = '';
+    const ang = i => (i / spokes) * Math.PI / 2;
+    for (let i = 0; i <= spokes; i++) p += `M0,0 L${f1(Math.cos(ang(i)) * s)},${f1(Math.sin(ang(i)) * s)} `;
     for (let k = 1; k <= rings; k++) {
-      const rr = (k / rings) * s * 0.95; p += 'M';
+      const rr = Math.pow(k / rings, 1.15) * s * .97; p += 'M';
       for (let i = 0; i <= spokes; i++) {
-        const a = (i / spokes) * Math.PI / 2, x = Math.cos(a) * rr, y = Math.sin(a) * rr;
-        if (i === 0) p += `${x},${y} `; else { const am = ((i - 0.5) / spokes) * Math.PI / 2, sag = rr * 0.86;
-          p += `Q${Math.cos(am) * sag},${Math.sin(am) * sag} ${x},${y} `; }
+        const x = Math.cos(ang(i)) * rr, y = Math.sin(ang(i)) * rr;
+        if (i === 0) { p += `${f1(x)},${f1(y)} `; continue; }
+        const am = ang(i - .5), sag = rr * (.8 + (k % 3) * .03);
+        p += `Q${f1(Math.cos(am) * sag)},${f1(Math.sin(am) * sag)} ${f1(x)},${f1(y)} `;
       }
     }
-    return `<svg xmlns="${NS}" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" style="transform:${flip}"><path d="${p}" stroke="#d8d8e0" stroke-width=".8" fill="none" opacity=".55"/></svg>`;
+    return `<svg xmlns="${NS}" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" style="transform:${flip}"><path d="${p}" stroke="#c9c9d2" stroke-width=".6" fill="none" opacity=".42"/></svg>`;
   }
-  const ghostSVG = (s, op = 0.12) => `<svg xmlns="${NS}" width="${s}" height="${s * 1.2}" viewBox="0 0 50 60" opacity="${op}">
-    <path d="M5 55 V24 C5 10 14 3 25 3 C36 3 45 10 45 24 V55 L39 50 L33 56 L27 50 L21 56 L15 50 L10 56Z" fill="#e8e8f0"/>
-    <ellipse cx="18" cy="24" rx="3.5" ry="5" fill="#222"/><ellipse cx="32" cy="24" rx="3.5" ry="5" fill="#222"/><ellipse cx="25" cy="36" rx="3" ry="4" fill="#222"/></svg>`;
+  // small white cartoon ghost: round head, little arms, wavy tail, dark oval eyes + mouth
+  const miniGhostSVG = (s = 24) => `<svg xmlns="${NS}" width="${s}" height="${s}" viewBox="0 0 40 40">
+    <defs><radialGradient id="mg${++uid}" cx=".45" cy=".35" r=".7"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#dcdcf0"/></radialGradient></defs>
+    <path d="M20 4 C28.5 4 32.5 10.5 32.5 18.5 L36.5 16.5 C38.6 15.6 39.6 18.6 37.8 19.8 L32.5 23.5 L32.5 30.5 C32.5 33.8 30 35 28.6 32.8 C27 35.8 23.8 35.8 22.8 33.4 C21.2 36.6 18.4 36.6 17.2 33.4 C15.8 35.8 12.8 35.6 11.4 32.8 C9.6 34.4 7.5 33 7.5 30.5 L7.5 23.5 L2.2 19.8 C0.4 18.6 1.4 15.6 3.5 16.5 L7.5 18.5 C7.5 10.5 11.5 4 20 4Z" fill="url(#mg${uid})"/>
+    <ellipse cx="16.3" cy="16" rx="2" ry="3" fill="#1b1622"/><ellipse cx="23.7" cy="16" rx="2" ry="3" fill="#1b1622"/><ellipse cx="20" cy="24" rx="2.1" ry="3" fill="#1b1622"/></svg>`;
+  // large faint gray background ghost with a flowing, wispy tail
+  const ghostSVG = (s, op = 0.12) => `<svg xmlns="${NS}" width="${s}" height="${f1(s * .9)}" viewBox="0 0 100 90" opacity="${op}">
+    <path d="M28 12 C40 1 64 3 70 24 C74 38 70 50 78 60 C84 68 92 72 100 74 C88 80 74 78 64 72 C60 79 50 84 41 80 C36 78 33 72 26 74 C17 77 8 72 3 64 C11 64 15 60 17 52 C20 38 16 22 28 12Z" fill="#cfcfd8"/>
+    <ellipse cx="38" cy="30" rx="4" ry="6.5" transform="rotate(-18 38 30)" fill="#141218"/><ellipse cx="54" cy="27" rx="4" ry="6.5" transform="rotate(-18 54 27)" fill="#141218"/>
+    <ellipse cx="47" cy="45" rx="3.5" ry="5" transform="rotate(-15 47 45)" fill="#141218"/></svg>`;
   const batSVG = (s, op) => `<svg xmlns="${NS}" width="${s}" height="${s / 2}" viewBox="0 0 60 30" opacity="${op}">
     <g class="hw-wings"><path d="M30 12 C25 4 15 2 2 6 C8 9 9 13 8 17 C13 14 17 16 18 21 C22 16 26 17 30 20 C34 17 38 16 42 21 C43 16 47 14 52 17 C51 13 52 9 58 6 C45 2 35 4 30 12Z" fill="#0d0a10"/></g>
     <circle cx="30" cy="13" r="3.5" fill="#0d0a10"/></svg>`;
   const tombSVG = (s, op) => `<svg xmlns="${NS}" width="${s}" height="${s * 1.1}" viewBox="0 0 40 44" opacity="${op}">
     <path d="M6 42 V16 C6 6 13 2 20 2 C27 2 34 6 34 16 V42Z" fill="#8a8a96"/><path d="M14 18 H26 M20 12 V28" stroke="#55555f" stroke-width="2.5"/><rect x="2" y="40" width="36" height="4" rx="2" fill="#3c4a30"/></svg>`;
-  const hauntedSVG = (w, h) => `<svg xmlns="${NS}" width="${w}" height="${h}" viewBox="0 0 400 90" preserveAspectRatio="xMidYMax meet">
-    <g fill="#08070a">
-    <path d="M0 90 V82 Q60 74 120 80 T260 78 T400 80 V90Z"/>
-    <path d="M14 82 V64 Q14 56 22 56 Q30 56 30 64 V82Z"/><path d="M44 82 V70 H56 V82Z"/><path d="M68 80 V58 H72 V64 H80 V68 H72 V80Z"/>
-    <path d="M95 82 V66 Q95 60 101 60 Q107 60 107 66 V82Z"/>
-    <path d="M250 80 V40 L262 30 V22 L266 18 L270 22 V30 L280 40 V48 L300 48 L312 36 L324 48 V80Z"/>
-    <path d="M300 80 V20 L308 6 L316 20 V80Z"/><path d="M228 82 V66 H240 V82Z"/><path d="M340 82 V62 Q340 55 348 55 Q356 55 356 62 V82Z"/>
-    <path d="M370 82 V60 H374 V66 H382 V70 H374 V82Z"/>
-    <path d="M190 82 L196 50 L188 46 L198 44 L194 30 L204 42 L210 26 L208 46 L216 40 L206 52 L204 82Z"/></g>
-    <g fill="#ff9a2a" class="hw-window"><rect x="304" y="26" width="6" height="8"/><rect x="258" y="54" width="7" height="8"/><rect x="290" y="56" width="7" height="8"/><rect x="266" y="36" width="5" height="6"/></g></svg>`;
+  // low-contrast graveyard (left) + haunted house (right) silhouette, drawn behind card content
+  const hauntedSVG = (w, h) => `<svg xmlns="${NS}" width="${w}" height="${h}" viewBox="0 0 400 64" preserveAspectRatio="none">
+    <g fill="#08070a" opacity=".95">
+    <path d="M0 64 V52 C40 46 80 50 130 53 C190 56 240 50 300 51 C340 52 370 48 400 50 V64Z"/>
+    <path d="M8 56 V36 C8 30 12 27 17 27 C22 27 26 30 26 36 V56Z"/><path d="M15.5 27 V18 M12 21 H19" stroke="#0b0a0e" stroke-width="2.2"/>
+    <path d="M34 56 V44 C34 41 36 40 39 40 H46 C49 40 51 41 51 44 V56Z"/><path d="M58 50 L66 38 M58 42 L66 46" stroke="#0b0a0e" stroke-width="2"/>
+    <path d="M76 55 V45 C76 42 78 41 81 41 C84 41 86 42 86 45 V55Z"/>
+    <path d="M296 54 V44 H300 V40 H303 V44 H307 V54Z"/><path d="M316 53 V40 M311 45 H321" stroke="#0b0a0e" stroke-width="1.8"/>
+    <path d="M334 52 V30 L340 24 V12 L344 4 L348 12 V24 L354 30 V36 H362 V26 L367 18 L372 26 V36 L380 36 L380 52Z"/>
+    <path d="M386 52 V40 L390 34 L394 40 V52Z"/></g>
+    <g fill="#3a2a18" opacity=".7" class="hw-window"><rect x="342.5" y="16" width="3" height="4"/><rect x="365.5" y="30" width="3" height="4"/><rect x="345" y="38" width="4" height="5"/></g></svg>`;
 
   /* ---------- page-level layer ---------- */
   function el(tag, cls, html, style) {
@@ -265,7 +273,9 @@
     root.appendChild(bg);
     // top band
     const w = innerWidth, band = el('div', 'hw-topband');
-    band.appendChild(el('div', 'hw-seg', dripSVG(w + 2, 'green', 3, { band: 10, maxLen: 42, wave: .7, fat: .75, gap: 80 }), 'left:-1px'));
+    const split = Math.round(w * .52), gapPx = 6; // orange left → ~middle, green right, clean separation
+    band.appendChild(el('div', 'hw-seg hw-glow', slimeSVG(split, 'orange', 3, 'top', { h: 7, maxLen: 34 }), 'left:0'));
+    band.appendChild(el('div', 'hw-seg hw-glow', slimeSVG(w - split - gapPx, 'green', 4, 'top', { h: 7, maxLen: 36 }), `left:${split + gapPx}px`));
     root.appendChild(band);
     // corner webs
     root.appendChild(el('div', 'hw-web', webSVG(170, 'scaleX(-1)'), 'right:0;top:0'));
@@ -278,13 +288,13 @@
     addCrawler(977);
     startSpiders();
     // peeking ghost
-    root.appendChild(el('div', 'hw-peek', ghostSVG(44, .9), 'right:6px;top:205px'));
+    root.appendChild(el('div', 'hw-peek', miniGhostSVG(30), 'right:22px;top:118px'));
     document.documentElement.appendChild(root);
   }
 
   /* ---------- heuristics ---------- */
   function isCard(e, cs, r) {
-    if (r.width < 160 || r.height < 60 || r.width > innerWidth * 0.95 || r.height > 900) return false;
+    if (r.width < 160 || r.height < (r.width > 500 ? 28 : 60) || r.width > innerWidth * 0.95 || r.height > 900) return false;
     if (parseFloat(cs.borderTopLeftRadius) < 3) return false;
     const border = parseFloat(cs.borderTopWidth) > 0 && cs.borderTopStyle !== 'none' && !/rgba\(0, 0, 0, 0\)/.test(cs.borderTopColor);
     const shadow = cs.boxShadow && cs.boxShadow !== 'none';
@@ -306,7 +316,7 @@
       if (count + cards.length >= MAX_CARDS) break;
       if (decorated.has(e) || e.closest('.hw-root')) continue;
       const r = e.getBoundingClientRect();
-      if (r.width < 160 || r.height < 60) continue;
+      if (r.width < 160 || r.height < 28) continue;
       const cs = getComputedStyle(e);
       if (!isCard(e, cs, r)) continue;
       // skip if an ancestor is already a decorated card (avoid nested slime soup)
@@ -321,21 +331,31 @@
       ensurePositioned(e, cs);
       touched.push([e, e.style.cssText]);
       if (isDashed(cs)) { // empty-state card → haunted house + graveyard
-        const h = el('div', 'hw-card-deco hw-haunt', hauntedSVG(r.width - 4, Math.min(90, r.height * 0.55)));
-        e.appendChild(h); added.push(h); e.classList.add('hw-carded'); return;
+        const h = el('div', 'hw-card-deco hw-haunt', hauntedSVG(r.width - 2, Math.min(r.height * .55, (r.width - 2) * .2)));
+        e.style.setProperty('isolation', 'isolate'); e.insertBefore(h, e.firstChild); added.push(h); e.classList.add('hw-carded'); return;
       }
-      const kind = ['orange', 'purple', 'green', 'orange', 'green', 'orange', 'purple'][i % 7];
-      e.style.setProperty('border-color', COLORS[kind].mid, 'important');
-      e.style.setProperty('box-shadow', `0 0 0 1px ${COLORS[kind].mid}55, 0 0 14px ${COLORS[kind].glow}33`, 'important');
-      e.classList.add('hw-carded');
       const deco = el('div', 'hw-card-deco');
-      if (kind !== 'purple') {
-        const sw = Math.round(Math.min(300, Math.max(110, r.width * (0.36 + (i % 3) * 0.06))));
-        deco.appendChild(el('div', 'hw-card-slime', dripSVG(sw, kind, i + 11, { maxLen: Math.min(44, r.height * 0.42), density: 0.75, side: Math.min(22, r.height * 0.22), taper: .3, band: 10, fat: .9, gap: sw / 3.4 })));
+      const pumpkin = (sz, extra = '') => el('div', 'hw-pumpkin' + extra, `<div class="hw-pk-halo"></div>${pumpkinSVG(sz)}`, `--d:${(2.6 + ((i * 0.37) % 1.4)).toFixed(2)}s;--dl:${(-(i * 1.13) % 3).toFixed(2)}s`);
+      if (r.height < 72 && r.width > 500) { // banner/alert: orange border, a pumpkin or ghost by the right edge, no slime
+        e.style.setProperty('border-color', COLORS.orange.mid, 'important');
+        deco.appendChild(i % 2 ? el('div', 'hw-mini-ghost hw-in-banner', miniGhostSVG(26)) : pumpkin(28, ' hw-in-banner'));
+        e.classList.add('hw-carded'); e.dataset.hwSlime = 'orange'; e.appendChild(deco); added.push(deco); return;
       }
-      if (i % 3 !== 1) deco.appendChild(el('div', 'hw-pumpkin', `<div class="hw-pk-halo"></div>${pumpkinSVG(i % 2 ? 26 : 30)}`, `--d:${(2.6 + ((i * 0.37) % 1.4)).toFixed(2)}s;--dl:${(-(i * 1.13) % 3).toFixed(2)}s`));
-      else if (kind === 'purple') deco.appendChild(el('div', 'hw-mini-ghost', ghostSVG(22, .9)));
-      if (i % 4 === 2) deco.appendChild(el('div', 'hw-card-web', webSVG(60, 'scaleX(-1)')));
+      const ci = cardSeq++;
+      // [border, slime, topper] in the reference's order
+      const [border, slime, topper] = [['orange', 'orange', 'pumpkin'], ['purple', null, 'ghost+pumpkin'], ['green', 'green', 'none'],
+        ['orange', 'orange', 'pumpkin'], ['purple', 'green', 'tomb'], ['green', 'green', 'pumpkin'], ['orange', 'orange', 'bat']][ci % 7];
+      e.style.setProperty('border-color', COLORS[border].mid, 'important');
+      e.classList.add('hw-carded'); e.dataset.hwSlime = slime || 'none';
+      if (slime) {
+        const sw = Math.round(Math.min(300, Math.max(110, r.width * (0.36 + (ci % 3) * 0.05))));
+        deco.appendChild(el('div', 'hw-card-slime hw-glow', slimeSVG(sw, slime, ci + 11, 'card', { h: 13, maxLen: Math.min(40, r.height * .4), side: Math.min(16, r.height * .16) })));
+      }
+      if (topper.includes('pumpkin')) deco.appendChild(pumpkin(ci % 2 ? 26 : 30));
+      if (topper.includes('ghost')) deco.appendChild(el('div', 'hw-mini-ghost', miniGhostSVG(24)));
+      if (topper === 'tomb') deco.appendChild(el('div', 'hw-card-tomb', tombSVG(22, .95)));
+      if (topper === 'bat') deco.appendChild(el('div', 'hw-card-bat', batSVG(30, .85)));
+      if (ci % 3 === 2) deco.appendChild(el('div', 'hw-card-web', webSVG(60, 'scaleX(-1)')));
       e.appendChild(deco); added.push(deco);
     });
   }
@@ -371,13 +391,13 @@
       const [, frac] = barFill(b);
       const card = b.closest('.hw-carded');
       let kind = 'orange';
-      if (card) { const bc = card.style.borderColor; kind = /107, 224|6be03a/i.test(bc) ? 'green' : /155, 92|9b5cf0/i.test(bc) ? 'purple' : 'orange'; }
+      if (card) { kind = card.dataset.hwSlime || 'orange'; if (kind === 'none') continue; }
       if (kind === 'purple') kind = count % 2 ? 'green' : 'orange';
       const fw = Math.max(0, Math.round(r.width * Math.min(1, frac)));
       if (fw < 8) continue;
       const host = b.tagName === 'PROGRESS' ? b.parentElement : b;
       const hcs = getComputedStyle(host); ensurePositioned(host, hcs);
-      const o = el('div', 'hw-bar-slime', dripSVG(fw, kind, count + 101, { band: Math.max(7, r.height + 2), maxLen: 11, fat: .85, gap: Math.max(30, fw / 3.2), fall: true, wave: .25 }));
+      const o = el('div', 'hw-bar-slime hw-glow', slimeSVG(fw, kind, count + 101, 'bar', { h: Math.max(8, r.height + 3), maxLen: 13 }));
       if (host !== b) { o.style.left = b.offsetLeft + 'px'; o.style.top = (b.offsetTop - 3) + 'px'; } else { o.style.left = '0'; o.style.top = '-3px'; }
       host.appendChild(o); added.push(o);
     }
