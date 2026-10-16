@@ -261,52 +261,62 @@
   let zombie = null;
   const LT = 16, LS = 15; // thigh, shin
   function ik(hx, hy, fx, fy) { // returns [thighDeg, kneeDeg] for a leg from hip to foot, knee bending forward (+x)
-    const dx = fx - hx, dy = fy - hy, d = Math.min(LT + LS - .05, Math.hypot(dx, dy));
+    const dx = fx - hx, dy = fy - hy, raw = Math.hypot(dx, dy), K = LT + LS - 4, M = LT + LS - .3,
+      d = raw < K ? raw : K + (M - K) * Math.tanh((raw - K) / (M - K)); // soft reach limit: knee never snaps straight
     const base = -Math.atan2(dx, dy), bend = Math.acos((LT * LT + d * d - LS * LS) / (2 * LT * d));
     const knee = Math.PI - Math.acos((LT * LT + LS * LS - d * d) / (2 * LT * LS));
     return [(base - bend) * 180 / Math.PI, knee * 180 / Math.PI];
   }
+  // smooth helpers
+  const sstep = u => { u = Math.min(1, Math.max(0, u)); return u * u * (3 - 2 * u); };          // C1 ease
+  const win = (u, a, b) => sstep((u - a) / (b - a));                                            // eased 0→1 over [a,b]
+  const bump = (u, a, b) => { if (u <= a || u >= b) return 0; const s = Math.sin(Math.PI * (u - a) / (b - a)); return s * s; }; // C1 hump
+  const TAU = Math.PI * 2;
+  /* Every pose value is a smooth periodic function of a continuous gait phase, so nothing jumps at the cycle wrap or
+     when support switches. Feet: A (good leg) steps during u∈[.02,.34]; B (dragging leg) shuffles during u∈[.50,.94].
+     Foot positions advance by exactly one stride S per cycle, so a planted foot never moves (no skating). */
+  const Z = { S: 26, T: 1.4, HB: 24 };
+  function zFeet(ph) {
+    const k = Math.floor(ph), u = ph - k;
+    return { u, fA: (k + win(u, .02, .34)) * Z.S + 7, fB: (k + win(u, .50, .94)) * Z.S - 7 };
+  }
+  // root advance: one stride per cycle, eased so it slows (not stops) during the double-support pause around u≈.42
+  const zRoot = ph => { const k = Math.floor(ph), u = ph - k; return (k + u + .55 * Math.sin(TAU * (u + .08)) / TAU) * Z.S; };
   function stepZombie(now, dt) {
     const n = root && root.querySelector('.hw-zombie'); if (!n) return;
     if (!zombie) { const q = id => n.querySelector(id);
       zombie = { n, r: rng(4242), active: false, next: now + 6000, lb: q('#zlb'), lf: q('#zlf'), ab: q('#zab'), af: q('#zaf'), t: q('.zt'), h: q('.zh'),
         kb: q('#zlb .zk'), kf: q('#zlf .zk'), eb: q('#zab .ze'), ef: q('#zaf .ze'), gb: q('.zl-b'), gf: q('.zl-f'), gab: q('.za-b'), gaf: q('.za-f') }; }
     const z = zombie, r = z.r, ground = innerHeight - 3;
+    dt = Math.min(dt, .05);
     if (!z.active) {
       if (now < z.next) { n.style.opacity = '0'; return; }
-      Object.assign(z, { active: true, fA: -40, fB: -54, hip: -46, ph: 0, swing: '-', from: -40, to: -40, stumble: 0 }); n.style.opacity = '1';
+      // stumble at most once per crossing, on a random step (~1 in 25 chance it falls inside any given step)
+      Object.assign(z, { active: true, ph: 0, x0: -40, stumbleAt: r() < .8 ? 3 + r() * 40 : 1e9, stT: -1 }); n.style.opacity = '1';
     }
-    const T = 1.35; z.ph += dt / T;
-    // gait phases: 0-.32 good leg A steps (lifted); .32-.45 double support; .45-.95 dragging leg B shuffles along the ground
-    const cyc = z.ph % 1;
-    if (cyc < .32) { if (z.swing !== 'A') { z.swing = 'A'; z.from = z.fA; z.to = z.fB + 30 + r() * 4; if (r() < .14) z.stumble = 1; } }
-    else if (cyc >= .45 && cyc < .95) { if (z.swing !== 'B') { z.swing = 'B'; z.from = z.fB; z.to = z.fA + 12 + r() * 3; } }
-    else z.swing = '-';
-    let liftA = 0;
-    if (z.swing === 'A') { const u = cyc / .32, e = u * u * (3 - 2 * u); z.fA = z.from + (z.to - z.from) * e; liftA = Math.sin(u * Math.PI) * 7; }
-    if (z.swing === 'B') { const u = (cyc - .45) / .5, e = u * u * (3 - 2 * u); z.fB = z.from + (z.to - z.from) * e; } // dragged: stays on the ground
-    // hip glides toward the feet's midpoint; height is limited by the planted leg's length -> natural bob
-    const stance = z.swing === 'A' ? z.fB : z.fA, target = (z.fA + z.fB) / 2 + 3;
-    z.hip += (target - z.hip) * Math.min(1, dt * 3.2);
-    const reach = LT + LS - .6, hy = ground - Math.sqrt(Math.max(36, reach * reach - (z.hip - stance) ** 2));
-    z.stumble = Math.max(0, z.stumble - dt * 1.4);
-    const w = Math.sin(z.ph * Math.PI * 2), st = z.stumble;
-    // pose
-    n.style.transform = `translate(${(z.hip - 40).toFixed(1)}px,${(hy - 50).toFixed(1)}px)`;
+    z.ph += dt / Z.T;
+    const { u, fA, fB } = zFeet(z.ph), hipRel = zRoot(z.ph), hip = z.x0 + hipRel;
+    // stumble envelope: smooth 300ms in, 200ms hold, 300ms out
+    if (z.stT < 0 && z.ph >= z.stumbleAt) z.stT = 0;
+    let st = 0; if (z.stT >= 0) { z.stT += dt; const t = z.stT; st = t < .3 ? sstep(t / .3) : t < .5 ? 1 : sstep(1 - (t - .5) / .3); if (t > .8) z.stT = -2; }
+    // body height: smooth periodic bob (low at mid-stride, high when passing over the support foot) + stumble dip
+    const hy = ground - Z.HB + 1.6 * Math.cos(TAU * 2 * (u - .18)) + st * 3;
+    const liftA = 7 * bump(u, .02, .34), liftB = .8 * bump(u, .50, .94); // B barely clears the ground: it drags
+    n.style.transform = `translate(${(hip - 40).toFixed(2)}px,${(hy - 50).toFixed(2)}px)`;
     const set = (g, tf) => g && g.setAttribute('transform', tf);
-    const [ta, ka] = ik(z.hip, hy, z.fA, ground - liftA), [tb, kb] = ik(z.hip, hy, z.fB, ground);
+    const [ta, ka] = ik(hip, hy, z.x0 + fA, ground - liftA), [tb, kb] = ik(hip - 2, hy, z.x0 + fB, ground - liftB);
     set(z.gf, 'translate(40,50)'); set(z.gb, 'translate(38,50)');
-    set(z.lf, `rotate(${ta.toFixed(1)})`); set(z.kf, `translate(0,16) rotate(${ka.toFixed(1)})`);
-    set(z.lb, `rotate(${tb.toFixed(1)})`); set(z.kb, `translate(0,16) rotate(${(kb * .35).toFixed(1)})`); // stiff dragging leg
-    const lean = 12 + (z.hip - stance) * .25 + st * 22 + w * 2;
-    set(z.t, `translate(40,50) rotate(${lean.toFixed(1)})`);
-    set(z.h, `translate(0,-27) rotate(${(14 + Math.sin(z.ph * Math.PI * 2 + 1.2) * 9 + st * 18).toFixed(1)})`);
-    // arms reach forward, swaying out of phase; they live in torso space (shoulder at 0,-23 rotated by lean)
-    const sh = (dx) => { const a = lean * Math.PI / 180; return `translate(${(40 + dx * Math.cos(a) + 23 * Math.sin(a)).toFixed(1)},${(50 + dx * Math.sin(a) - 23 * Math.cos(a)).toFixed(1)})`; };
+    set(z.lf, `rotate(${ta.toFixed(2)})`); set(z.kf, `translate(0,16) rotate(${ka.toFixed(2)})`);
+    set(z.lb, `rotate(${tb.toFixed(2)})`); set(z.kb, `translate(0,16) rotate(${(kb * .35).toFixed(2)})`); // stiff dragging knee
+    const w = Math.sin(TAU * u);
+    const lean = 13 + 3 * Math.sin(TAU * (u - .1)) + st * 20;
+    set(z.t, `translate(40,50) rotate(${lean.toFixed(2)})`);
+    set(z.h, `translate(0,-27) rotate(${(14 + 8 * Math.sin(TAU * u + 1.2) + st * 16).toFixed(2)})`);
+    const sh = dx => { const a = lean * Math.PI / 180; return `translate(${(40 + dx * Math.cos(a) + 23 * Math.sin(a)).toFixed(2)},${(50 + dx * Math.sin(a) - 23 * Math.cos(a)).toFixed(2)})`; };
     set(z.gaf, sh(2)); set(z.gab, sh(-2));
-    set(z.af, `rotate(${(-92 + lean * .3 + w * 9 - st * 30).toFixed(1)})`); set(z.ef, `translate(0,13) rotate(${(8 + w * 6).toFixed(1)})`);
-    set(z.ab, `rotate(${(-84 + lean * .3 - w * 9 - st * 40).toFixed(1)})`); set(z.eb, `translate(0,13) rotate(${(14 - w * 6).toFixed(1)})`);
-    if (z.hip > innerWidth + 60) { z.active = false; z.next = now + 45000 + r() * 15000; n.style.opacity = '0'; }
+    set(z.af, `rotate(${(-92 + lean * .3 + w * 9 - st * 26).toFixed(2)})`); set(z.ef, `translate(0,13) rotate(${(8 + w * 6).toFixed(2)})`);
+    set(z.ab, `rotate(${(-84 + lean * .3 - w * 9 - st * 34).toFixed(2)})`); set(z.eb, `translate(0,13) rotate(${(14 - w * 6).toFixed(2)})`);
+    if (hip > innerWidth + 60) { z.active = false; z.next = now + 45000 + r() * 15000; n.style.opacity = '0'; }
   }
   let boltTimer = 0;
   function scheduleLightning(first) {
