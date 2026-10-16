@@ -224,7 +224,7 @@
     if (reduceMotion || rafId) return;
     let last = performance.now();
     let lastCat = 0;
-    const loop = now => { const dt = Math.min(.05, (now - last) / 1000); last = now; stepSpiders(now, dt);
+    const loop = now => { const dt = Math.min(.05, (now - last) / 1000); last = now; stepSpiders(now, dt); stepZombie(now, dt);
       if (now - lastCat > 120) { lastCat = now; turnCats(); }
       rafId = requestAnimationFrame(loop); };
     rafId = requestAnimationFrame(loop);
@@ -234,9 +234,19 @@
     if (ptr.x < -1000) return;
     document.querySelectorAll('.hw-eyes, .hw-mummy').forEach(eg => {
       const r = eg.getBoundingClientRect(); if (!r.width) return;
-      const dx = ptr.x - (r.left + r.width / 2), dy = ptr.y - (r.top + r.height / 2), d = Math.hypot(dx, dy) || 1, m = eg.classList.contains('hw-mummy') ? 1.6 : 3.2;
-      const tf = `translate(${(dx / d * m).toFixed(2)}px,${(dy / d * m * .6).toFixed(2)}px)`;
-      eg.querySelectorAll('.hw-pupil').forEach(p => { p.style.transform = tf; });
+      eg.querySelectorAll('.hw-pupil').forEach(p => {
+        const pr = p.getBoundingClientRect();
+        // screen-space direction from this eye to the cursor...
+        let dx = ptr.x - (pr.left + pr.width / 2), dy = ptr.y - (pr.top + pr.height / 2);
+        const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+        // ...inverse-rotated into the eye group's local (rotated) space
+        const g = p.closest('[data-rot]'), rot = g ? -parseFloat(g.dataset.rot) * Math.PI / 180 : 0;
+        const lx = dx * Math.cos(rot) - dy * Math.sin(rot), ly = dx * Math.sin(rot) + dy * Math.cos(rot);
+        // clamp to the eye's ellipse (semi-axes minus pupil size)
+        const a = parseFloat(p.dataset.rx || 3), b = parseFloat(p.dataset.ry || 2), near = Math.min(1, d / 60);
+        const t = near / (Math.hypot(lx / a, ly / b) || 1); // scale so the pupil lands on (or inside) the ellipse edge
+        p.setAttribute('transform', `translate(${(lx * t).toFixed(2)},${(ly * t).toFixed(2)})`);
+      });
     });
     const sk = document.querySelector('.hw-skel-hang');
     if (sk) { const r = sk.getBoundingClientRect(); sk.classList.toggle('hw-chatter', Math.hypot(ptr.x - (r.left + r.width / 2), ptr.y - (r.top + r.height * .6)) < 130); }
@@ -247,14 +257,64 @@
       const h = c.querySelector('.hw-cat-head'); if (h) h.style.transform = `rotate(${(ang + tilt).toFixed(1)}deg)`;
     });
   }
+  /* ---------- zombie gait: stance foot stays planted (no skating); hip follows the feet ---------- */
+  let zombie = null;
+  const LT = 16, LS = 15; // thigh, shin
+  function ik(hx, hy, fx, fy) { // returns [thighDeg, kneeDeg] for a leg from hip to foot, knee bending forward (+x)
+    const dx = fx - hx, dy = fy - hy, d = Math.min(LT + LS - .05, Math.hypot(dx, dy));
+    const base = -Math.atan2(dx, dy), bend = Math.acos((LT * LT + d * d - LS * LS) / (2 * LT * d));
+    const knee = Math.PI - Math.acos((LT * LT + LS * LS - d * d) / (2 * LT * LS));
+    return [(base - bend) * 180 / Math.PI, knee * 180 / Math.PI];
+  }
+  function stepZombie(now, dt) {
+    const n = root && root.querySelector('.hw-zombie'); if (!n) return;
+    if (!zombie) { const q = id => n.querySelector(id);
+      zombie = { n, r: rng(4242), active: false, next: now + 6000, lb: q('#zlb'), lf: q('#zlf'), ab: q('#zab'), af: q('#zaf'), t: q('.zt'), h: q('.zh'),
+        kb: q('#zlb .zk'), kf: q('#zlf .zk'), eb: q('#zab .ze'), ef: q('#zaf .ze'), gb: q('.zl-b'), gf: q('.zl-f'), gab: q('.za-b'), gaf: q('.za-f') }; }
+    const z = zombie, r = z.r, ground = innerHeight - 3;
+    if (!z.active) {
+      if (now < z.next) { n.style.opacity = '0'; return; }
+      Object.assign(z, { active: true, fA: -40, fB: -54, hip: -46, ph: 0, swing: '-', from: -40, to: -40, stumble: 0 }); n.style.opacity = '1';
+    }
+    const T = 1.35; z.ph += dt / T;
+    // gait phases: 0-.32 good leg A steps (lifted); .32-.45 double support; .45-.95 dragging leg B shuffles along the ground
+    const cyc = z.ph % 1;
+    if (cyc < .32) { if (z.swing !== 'A') { z.swing = 'A'; z.from = z.fA; z.to = z.fB + 30 + r() * 4; if (r() < .14) z.stumble = 1; } }
+    else if (cyc >= .45 && cyc < .95) { if (z.swing !== 'B') { z.swing = 'B'; z.from = z.fB; z.to = z.fA + 12 + r() * 3; } }
+    else z.swing = '-';
+    let liftA = 0;
+    if (z.swing === 'A') { const u = cyc / .32, e = u * u * (3 - 2 * u); z.fA = z.from + (z.to - z.from) * e; liftA = Math.sin(u * Math.PI) * 7; }
+    if (z.swing === 'B') { const u = (cyc - .45) / .5, e = u * u * (3 - 2 * u); z.fB = z.from + (z.to - z.from) * e; } // dragged: stays on the ground
+    // hip glides toward the feet's midpoint; height is limited by the planted leg's length -> natural bob
+    const stance = z.swing === 'A' ? z.fB : z.fA, target = (z.fA + z.fB) / 2 + 3;
+    z.hip += (target - z.hip) * Math.min(1, dt * 3.2);
+    const reach = LT + LS - .6, hy = ground - Math.sqrt(Math.max(36, reach * reach - (z.hip - stance) ** 2));
+    z.stumble = Math.max(0, z.stumble - dt * 1.4);
+    const w = Math.sin(z.ph * Math.PI * 2), st = z.stumble;
+    // pose
+    n.style.transform = `translate(${(z.hip - 40).toFixed(1)}px,${(hy - 50).toFixed(1)}px)`;
+    const set = (g, tf) => g && g.setAttribute('transform', tf);
+    const [ta, ka] = ik(z.hip, hy, z.fA, ground - liftA), [tb, kb] = ik(z.hip, hy, z.fB, ground);
+    set(z.gf, 'translate(40,50)'); set(z.gb, 'translate(38,50)');
+    set(z.lf, `rotate(${ta.toFixed(1)})`); set(z.kf, `translate(0,16) rotate(${ka.toFixed(1)})`);
+    set(z.lb, `rotate(${tb.toFixed(1)})`); set(z.kb, `translate(0,16) rotate(${(kb * .35).toFixed(1)})`); // stiff dragging leg
+    const lean = 12 + (z.hip - stance) * .25 + st * 22 + w * 2;
+    set(z.t, `translate(40,50) rotate(${lean.toFixed(1)})`);
+    set(z.h, `translate(0,-27) rotate(${(14 + Math.sin(z.ph * Math.PI * 2 + 1.2) * 9 + st * 18).toFixed(1)})`);
+    // arms reach forward, swaying out of phase; they live in torso space (shoulder at 0,-23 rotated by lean)
+    const sh = (dx) => { const a = lean * Math.PI / 180; return `translate(${(40 + dx * Math.cos(a) + 23 * Math.sin(a)).toFixed(1)},${(50 + dx * Math.sin(a) - 23 * Math.cos(a)).toFixed(1)})`; };
+    set(z.gaf, sh(2)); set(z.gab, sh(-2));
+    set(z.af, `rotate(${(-92 + lean * .3 + w * 9 - st * 30).toFixed(1)})`); set(z.ef, `translate(0,13) rotate(${(8 + w * 6).toFixed(1)})`);
+    set(z.ab, `rotate(${(-84 + lean * .3 - w * 9 - st * 40).toFixed(1)})`); set(z.eb, `translate(0,13) rotate(${(14 - w * 6).toFixed(1)})`);
+    if (z.hip > innerWidth + 60) { z.active = false; z.next = now + 45000 + r() * 15000; n.style.opacity = '0'; }
+  }
   let boltTimer = 0;
   function scheduleLightning(first) {
     if (reduceMotion) return;
     boltTimer = setTimeout(() => {
       if (!enabled || !root) return;
-      const f = root.querySelector('.hw-flash'), b = root.querySelector('.hw-bolt');
-      if (b) b.style.left = (15 + Math.random() * 65).toFixed(0) + '%';
-      [f, b].forEach(n => { if (!n) return; n.classList.remove('hw-strike'); void n.offsetWidth; n.classList.add('hw-strike'); });
+      const f = root.querySelector('.hw-flash');
+      if (f) { f.classList.remove('hw-strike'); void f.offsetWidth; f.classList.add('hw-strike'); }
       scheduleLightning(false);
     }, first ? 6000 + Math.random() * 6000 : 30000 + Math.random() * 30000);
   }
@@ -358,14 +418,20 @@
     <path d="M18 34 C20 33 22 35 21 37" stroke="#8e3a2a" stroke-width="1.6" fill="none"/>
     <path d="M12 52 H32" stroke="#e8e2d0" stroke-width="3" opacity=".55"/></svg>`;
   const dirtHTML = () => Array.from({ length: 8 }, (_, i) => `<i style="--dx:${(i - 3.5) * 9}px;--dy:${-18 - (i % 3) * 10}px;animation-delay:${(i * .03).toFixed(2)}s"></i>`).join('');
-  // --- shuffling zombie (cartoon silhouette with green skin, arms out)
-  const zombieSVG = () => `<svg xmlns="${NS}" width="54" height="86" viewBox="0 0 54 86" overflow="visible">
-    <g class="hw-z-legs"><path d="M20 58 L16 84 M32 58 L36 84" stroke="#2a2e24" stroke-width="6" stroke-linecap="round"/></g>
-    <path d="M16 30 C16 26 36 26 37 30 L38 60 H15Z" fill="#3d4a5c"/><path d="M15 60 L20 54 L24 60 L29 55 L33 60 L38 55 V60Z" fill="#2c3646"/>
-    <g class="hw-z-arms"><path d="M34 33 L54 35 M33 40 L53 42" stroke="#6f9a3e" stroke-width="5" stroke-linecap="round"/></g>
-    <circle cx="27" cy="18" r="10" fill="#7aa645"/><path d="M19 12 C22 6 33 6 36 13" stroke="#3a4a22" stroke-width="3" fill="none"/>
-    <circle cx="31" cy="17" r="2.6" fill="#f2f0d8"/><circle cx="31.5" cy="17.5" r="1" fill="#1a1a1a"/><circle cx="24" cy="18" r="1.6" fill="#1a1a1a"/>
-    <path d="M24 24 L33 23" stroke="#2a3418" stroke-width="1.5"/></svg>`;
+  // --- shambling zombie: jointed rig (hips/knees/shoulders/neck), posed every frame by stepZombie()
+  const zombieSVG = () => { const leg = id => `<g id="${id}"><path d="M-3 0 L3 0 L2.6 16 L-2.6 16Z" fill="#5b6650"/>
+      <g class="zk"><path d="M-2.5 0 L2.5 0 L2 15 L-2 15Z" fill="#525c47"/><path d="M-3 13 L8 13 L9 16 L-3 16Z" fill="#3a3128"/></g></g>`;
+    const arm = id => `<g id="${id}"><path d="M-2.4 0 L2.4 0 L2 13 L-2 13Z" fill="#3d4a5c"/>
+      <g class="ze"><path d="M-2 0 L2 0 L1.6 12 L-1.6 12Z" fill="#6f9a3e"/><path d="M-2.4 11 L2.4 11 L3 15 L1 14 L0 16 L-1 14 L-3 15Z" fill="#6f9a3e"/></g></g>`;
+    return `<svg xmlns="${NS}" width="80" height="100" viewBox="0 0 80 100" overflow="visible">
+    <g class="zl-b">${leg('zlb')}</g><g class="za-b">${arm('zab')}</g>
+    <g class="zt"><path d="M-8 2 C-9 -10 -8 -22 -6 -26 L6 -26 C8 -22 9 -10 8 2 L4 5 L1 1 L-3 5Z" fill="#3d4a5c"/>
+      <path d="M-6 -8 L-1 -6 M2 -16 L6 -14" stroke="#2c3646" stroke-width="1.2"/>
+      <g class="zh"><path d="M0 0 V-4" stroke="#6f9a3e" stroke-width="4"/><circle cx="1" cy="-11" r="8.5" fill="#7aa645"/>
+        <path d="M-6 -15 C-3 -21 6 -21 8 -14" stroke="#3a4a22" stroke-width="2.6" fill="none"/>
+        <circle cx="4.5" cy="-11.5" r="2.4" fill="#f2f0d8"/><circle cx="5.2" cy="-11" r=".9" fill="#1a1a1a"/><circle cx="-1" cy="-11" r="1.4" fill="#1a1a1a"/>
+        <path d="M-1 -5.5 L7 -6.5" stroke="#2a3418" stroke-width="1.4"/></g></g>
+    <g class="zl-f">${leg('zlf')}</g><g class="za-f">${arm('zaf')}</g></svg>`; };
   // --- cauldron with bubbling goo
   const cauldronSVG = () => `<svg xmlns="${NS}" width="78" height="66" viewBox="0 0 78 66" overflow="visible">
     <ellipse cx="39" cy="22" rx="34" ry="8" fill="#5cc41f"/><ellipse cx="33" cy="20" rx="14" ry="3" fill="#a6ec6a" opacity=".6"/>
@@ -386,16 +452,14 @@
     <defs><linearGradient id="mw${++uid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#efe9d8"/><stop offset="1" stop-color="#c9c1aa"/></linearGradient></defs>
     <g fill="url(#mw${uid})" stroke="#a69c84" stroke-width=".6">
       <path d="M-2 26 L26 -2 L36 -2 L-2 36Z"/><path d="M-2 48 L48 -2 L56 2 L2 56Z"/><path d="M8 62 L62 8 L64 16 L16 64Z" opacity=".95"/></g>
-    <g class="hw-blinker"><ellipse cx="22" cy="31" rx="4" ry="3.2" fill="#fff6c8"/><ellipse cx="33" cy="20" rx="4" ry="3.2" fill="#fff6c8"/>
-      <circle class="hw-pupil" cx="22" cy="31" r="1.7" fill="#1c1410"/><circle class="hw-pupil" cx="33" cy="20" r="1.7" fill="#1c1410"/></g>
+    ${[[22, 31], [33, 20]].map(([x, y]) => `<g transform="rotate(-45 ${x} ${y})" data-rot="-45"><g class="hw-blinker">
+      <ellipse cx="${x}" cy="${y}" rx="4.6" ry="2.8" fill="#fff6c8"/><circle class="hw-pupil" data-rx="2.9" data-ry="1.1" cx="${x}" cy="${y}" r="1.6" fill="#1c1410"/></g></g>`).join('')}
     <path d="M-2 40 L40 -2" stroke="#16121a" stroke-width="2.4" opacity=".7"/></svg>`;
   // --- a pair of glowing eyes (pupils track the cursor)
   const eyesSVG = (col = '#ffd84a', blood = false) => `<svg xmlns="${NS}" width="46" height="20" viewBox="0 0 46 20" overflow="visible">
     <g class="hw-blinker">${[11, 35].map(x => `<ellipse cx="${x}" cy="10" rx="8.5" ry="6.5" fill="${blood ? '#f4efe6' : col}"/>
       ${blood ? `<path d="M${x - 8} 9 L${x - 4} 10 L${x - 2} 8 M${x + 8} 11 L${x + 4} 10 L${x + 5} 12" stroke="#c0392b" stroke-width=".6" fill="none"/>` : ''}
-      <g class="hw-pupil"><ellipse cx="${x}" cy="10" rx="${blood ? 3.4 : 1.8}" ry="${blood ? 3.4 : 5}" fill="${blood ? '#3b7fd1' : '#120c06'}"/>${blood ? `<circle cx="${x}" cy="10" r="1.7" fill="#0c0c10"/>` : ''}</g>`).join('')}</g></svg>`;
-  // --- lightning bolt
-  const boltSVG = () => `<svg xmlns="${NS}" width="120" height="300" viewBox="0 0 120 300"><path d="M70 0 L42 110 L66 112 L30 220 L54 222 L22 300 L96 180 L70 178 L102 80 L78 78 L104 0Z" fill="#e9dcff" opacity=".7"/></svg>`;
+      <g class="hw-pupil" data-rx="${blood ? 4.8 : 6.4}" data-ry="${blood ? 2.8 : 1.4}"><ellipse cx="${x}" cy="10" rx="${blood ? 3.4 : 1.8}" ry="${blood ? 3.4 : 5}" fill="${blood ? '#3b7fd1' : '#120c06'}"/>${blood ? `<circle cx="${x}" cy="10" r="1.7" fill="#0c0c10"/>` : ''}</g>`).join('')}</g></svg>`;
   const batSVG = (s, op) => `<svg xmlns="${NS}" width="${s}" height="${s / 2}" viewBox="0 0 60 30" opacity="${op}">
     <g class="hw-wings"><path d="M30 12 C25 4 15 2 2 6 C8 9 9 13 8 17 C13 14 17 16 18 21 C22 16 26 17 30 20 C34 17 38 16 42 21 C43 16 47 14 52 17 C51 13 52 9 58 6 C45 2 35 4 30 12Z" fill="#0d0a10"/></g>
     <circle cx="30" cy="13" r="3.5" fill="#0d0a10"/></svg>`;
@@ -464,7 +528,7 @@
     root.appendChild(el('div', 'hw-skel hw-skel-hang', `<div class="hw-skel-cord"></div>${skeletonSVG(38, true)}`));
     // zombie hand bursting from the bottom edge (CSS cycle) + shuffling zombie (CSS cycle)
     root.appendChild(el('div', 'hw-zhand', `${zHandSVG()}<div class="hw-dirt">${dirtHTML()}</div>`));
-    root.appendChild(el('div', 'hw-zombie', zombieSVG()));
+    root.appendChild(el('div', 'hw-zombie', zombieSVG())); zombie = null;
     // cauldron in the bottom-right corner (clear of the cat at left and the peeker at 62%)
     root.appendChild(el('div', 'hw-cauldron', `<div class="hw-steam"></div>${cauldronSVG()}`));
     // a little candy scattered along the bottom edge + one that occasionally tumbles down
@@ -474,8 +538,7 @@
     // eyes in dark spots that follow the cursor (capped at 3 pairs)
     [['6%', '52%', '#ffd84a', false], ['91%', '58%', '#9cff4a', false], ['30%', '74%', '', true]].forEach(([x, y, c, b], i) =>
       root.appendChild(el('div', 'hw-eyes', eyesSVG(c, b), `left:${x};top:${y};--bd:${(4 + i * 1.7).toFixed(1)}s`)));
-    // lightning: flash overlay + faint bolt (scheduled in JS, randomised 30-60s)
-    root.insertBefore(el('div', 'hw-bolt', boltSVG()), root.querySelector('.hw-bg').nextSibling);
+    // lightning: gentle sky-glow flash only (scheduled in JS, randomised 30-60s)
     root.appendChild(el('div', 'hw-flash'));
     // black cat sitting in the bottom-left corner
     root.appendChild(el('div', 'hw-cat hw-cat-corner', catSVG(52)));
