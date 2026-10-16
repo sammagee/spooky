@@ -6,10 +6,16 @@
 .hw-seg{position:absolute;top:0}
 .hw-web{opacity:.8}
 .hw-web svg{display:block}
-.hw-spider{top:0;transform-origin:top center;animation:hw-spider 9s ease-in-out infinite}
-.hw-thread{position:absolute;left:14px;bottom:22px;width:1px;height:var(--len);background:linear-gradient(rgba(220,220,230,.15),rgba(220,220,230,.7))}
-.hw-spider{height:calc(var(--len) + 30px);filter:drop-shadow(0 0 3px rgba(255,255,255,.35))}
-.hw-spider svg{position:absolute;bottom:0;left:0;animation:hw-sway 3s ease-in-out infinite alternate;transform-origin:50% -40px}
+.hw-spider{top:0;width:0;height:0;transform-origin:0 0}
+.hw-thread{position:absolute;left:0;top:0;width:1px;height:100px;transform-origin:0 0;background:linear-gradient(rgba(220,220,230,.15),rgba(220,220,230,.7))}
+.hw-sp-body{position:absolute;left:0;top:0;width:30px;height:30px;transform-origin:15px 4px;filter:drop-shadow(0 0 3px rgba(255,255,255,.35))}
+.hw-crawler{left:0;top:0;width:30px;height:30px}.hw-crawler .hw-sp-body{transform:scale(.8)}
+.hw-sp-body svg{display:block}
+.hw-legs{transform-box:fill-box}
+.hw-legs-l,.hw-legs-l2{transform-origin:100% 50%}.hw-legs-r,.hw-legs-r2{transform-origin:0 50%}
+.hw-moving .hw-legs-l,.hw-moving .hw-legs-r2{animation:hw-leg .22s ease-in-out infinite alternate}
+.hw-moving .hw-legs-r,.hw-moving .hw-legs-l2{animation:hw-leg .22s ease-in-out infinite alternate-reverse}
+@keyframes hw-leg{from{transform:rotate(-9deg)}to{transform:rotate(9deg)}}
 .hw-peek{z-index:2;animation:hw-peek 12s ease-in-out infinite;filter:drop-shadow(0 0 8px rgba(200,220,255,.5))}
 .hw-float{animation:hw-float 14s ease-in-out infinite}
 .hw-ghost.hw-float{animation-name:hw-ghost}
@@ -23,8 +29,16 @@
 .hw-card-slime{position:absolute;top:-1px;right:-2px}
 .hw-card-slime svg,.hw-bar-slime svg{display:block}
 .hw-card-slime{border-top-right-radius:inherit;overflow:visible}
-.hw-pumpkin{position:absolute;right:18px;top:-22px;z-index:2;filter:drop-shadow(0 0 6px rgba(255,140,30,.6));animation:hw-glow 3.2s ease-in-out infinite}
-.hw-pumpkin .hw-face{animation:hw-flicker 2.3s steps(1) infinite}
+.hw-pumpkin{position:absolute;right:18px;top:-22px;z-index:2;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
+.hw-pumpkin svg{position:relative;display:block}
+.hw-pk-halo{position:absolute;left:50%;top:58%;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,196,80,.55) 0,rgba(255,120,20,.28) 38%,rgba(255,90,0,0) 70%);
+  animation:hw-breathe var(--d,3.2s) ease-in-out var(--dl,0s) infinite}
+.hw-face-glow{animation:hw-candle var(--d,3.2s) ease-in-out var(--dl,0s) infinite}
+@keyframes hw-breathe{0%{opacity:.35;transform:scale(.85)}30%{opacity:.85;transform:scale(1.05)}36%{opacity:.62;transform:scale(1)}
+  44%{opacity:.95;transform:scale(1.1)}62%{opacity:.7;transform:scale(1)}66%{opacity:.82}100%{opacity:.35;transform:scale(.85)}}
+@keyframes hw-candle{0%{opacity:.15}30%{opacity:.8}35%{opacity:.45}44%{opacity:.95}58%{opacity:.6}61%{opacity:.75}100%{opacity:.15}}
+.hw-pumpkin .hw-face{opacity:.92}
 .hw-mini-ghost{position:absolute;right:30px;top:-22px;animation:hw-float 6s ease-in-out infinite;filter:drop-shadow(0 0 6px rgba(200,200,255,.7))}
 .hw-card-web{position:absolute;right:0;bottom:0;transform:scaleY(-1);opacity:.6}
 .hw-haunt{display:flex;align-items:flex-end;justify-content:center;opacity:.95}
@@ -45,7 +59,7 @@
 @keyframes hw-flicker{0%,100%{opacity:1}40%{opacity:.75}43%{opacity:1}71%{opacity:.85}}
 @media (prefers-reduced-motion: reduce){
   .hw-root *,.hw-root,.hw-card-deco,.hw-card-deco *,.hw-bar-slime *{animation:none!important;transition:none!important}
-  .hw-drop{opacity:0!important}.hw-flyer{display:none}.hw-goo{transform:none!important}
+  .hw-drop{opacity:0!important}.hw-flyer{display:none}.hw-pk-halo{opacity:.7}.hw-face-glow{opacity:.6}.hw-goo{transform:none!important}
 }
 
 /* ---- gloom shader ---- */

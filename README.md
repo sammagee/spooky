@@ -7,6 +7,15 @@ Puts a Halloween overlay on any website: glossy orange and toxic-green slime dri
 ## Slime rendering
 Each slime strip is one continuous band, flush with the edge, with dense tapered drips that end in small teardrop tips. A gooey SVG filter (`feGaussianBlur` plus a `feColorMatrix` alpha threshold) fuses the drips into the band. Then `feOffset`/`feComposite` add a darker lower rim, `feSpecularLighting` adds wet gloss, a white specular streak runs along the band and down the drips, and a blurred flood adds a colored glow. On cards the slime starts at the top-right corner, wraps over it and a little way down the right border, and has a pumpkin sitting on it. Progress-bar fills are replaced by a gooey slime bar with short drips.
 
+## Colours and transitions
+The slime colours were matched to pixels sampled from the reference: orange #e8650a–#f08a2a with a burnt-orange rim, green #5cc41f–#7fdc3a with an olive rim. The glow is small, and the specular highlights are small and soft. The top band is a single SVG that blends from orange to green across the middle third. In that zone, irregular blobs of each colour sit inside the band and drips of both colours interleave, so the two slimes appear to ooze into each other instead of meeting at a straight line.
+
+## Pumpkins and spiders
+- **Jack-o'-lanterns:** each one has a radial halo layer and a blurred face-glow layer. Their opacity (and the halo's scale) breathes on a 2.6–4s ease-in-out cycle with small irregular flickers. Each pumpkin has its own duration and phase.
+- **Hanging spiders:** a seeded `requestAnimationFrame` scheduler moves them. Each spider drops in short bursts, rests, sometimes climbs back up (more slowly), and turns slightly. It swings like a damped pendulum after each move, with a slower swing on a longer thread. The legs wiggle while it moves.
+- **Crawling spider:** one spider walks along the top-right cobweb, pausing and changing direction.
+- Everything is driven by transforms only. Under reduced-motion the spiders stay static.
+
 ## Gloom layer
 A full-viewport layer that ignores clicks: an edge vignette with an occasional subtle flicker, a light desaturating purple/green grade (`backdrop-filter: saturate(.88)`), two layers of slowly drifting `feTurbulence` fog near the bottom, and faint film grain. All of it is animated with transform/opacity only and stops under reduced-motion.
 
