@@ -33,7 +33,7 @@
     green:  { hi: '#5fbf30', mid: '#4fa82a', lo: '#3a7d1e', rim: '#2f5e18' },
     purple: { hi: '#d9b8ff', mid: '#9b5cf0', lo: '#5a2ca8', rim: '#3a1a70', glow: '#9b5cf0' }
   };
-  function dripSVG(w, color, seed, { band = 10, maxLen = 40, density = 1, fall = true, side = 0, wave = 0.35, taper = 0, fat = 1 } = {}) {
+  function dripSVG(w, color, seed, { band = 10, maxLen = 40, density = 1, fall = true, side = 0, wave = 0.35, taper = 0, fat = 1, gap = 0 } = {}) {
     const mix = color === 'mix', id = ++uid, r = rng(seed * 7919 + 13);
     const c = SLIME[mix ? 'orange' : color];
     // colour for a drip at x (mix: noisy smoothstep orange→green across a wide middle zone)
@@ -54,8 +54,9 @@
     let x = 3 + r() * 6, n = 0;
     const xmax = w - (side ? 10 : 3);
     while (x < xmax) {
-      const roll = (n++ % 4 === 2) ? 0.95 : r();
-      const len = (roll < 0.45 ? 0.08 + r() * 0.2 : roll < 0.8 ? 0.3 + r() * 0.35 : 0.7 + r() * 0.3) * maxLen;
+      const roll = gap ? -1 : (n++ % 4 === 2) ? 0.95 : r();
+      const sparseLen = () => { const q = r(); return q < .28 || n++ % 4 === 1 ? Math.max(30, maxLen * (.72 + r() * .28)) : 4 + r() * 8; };
+      const len = roll < 0 ? Math.min(maxLen, sparseLen()) : (roll < 0.45 ? 0.08 + r() * 0.2 : roll < 0.8 ? 0.3 + r() * 0.35 : 0.7 + r() * 0.3) * maxLen;
       const t = Math.min(band * 0.6, (2.6 + r() * 2.8) * fat + len * 0.05) * (taper ? Math.max(.5, th(x)) : 1); // half-width at root (thin streams)
       const tip = t * (0.55 + r() * 0.2); // teardrop end, only a little wider than the stream
       const y0 = band * th(x) * 0.6, yE = band * th(x) + len * (taper ? th(x) : 1);
@@ -64,7 +65,8 @@
       if (len > maxLen * 0.3) streaks += `<path d="M${x - t * 0.35},${band + 1} L${x - tip * 0.35},${yE - tip * 0.9}" />`;
       if (fall && len > maxLen * 0.6 && r() < 0.35)
         drops += `<ellipse class="hw-drop" cx="${x}" cy="${yE + 1}" rx="${tip * 0.8}" ry="${tip}" fill="${mix ? (x / w > .5 ? SLIME.green.mid : SLIME.orange.mid) : c.mid}" style="animation-duration:${(6 + r() * 7).toFixed(1)}s;animation-delay:${(-r() * 9).toFixed(1)}s"/>`;
-      x += (2 * t + 4 + r() * (len > maxLen * 0.5 ? 14 : 8)) / density;
+      if (gap) x += r() < .25 ? 2 * t + 4 + r() * 6 : gap * (.45 + r() * 1.1); // clustered pairs + irregular gaps
+      else x += (2 * t + 4 + r() * (len > maxLen * 0.5 ? 14 : 8)) / density;
     }
     const dur = (6 + r() * 4).toFixed(1);
     return `<svg xmlns="${NS}" width="${w}" height="${H}" viewBox="0 0 ${w} ${H}" style="overflow:visible">
@@ -263,7 +265,7 @@
     root.appendChild(bg);
     // top band
     const w = innerWidth, band = el('div', 'hw-topband');
-    band.appendChild(el('div', 'hw-seg', dripSVG(w + 2, 'green', 3, { band: 10, maxLen: 42, density: 1.25, wave: .6, fat: .75 }), 'left:-1px'));
+    band.appendChild(el('div', 'hw-seg', dripSVG(w + 2, 'green', 3, { band: 10, maxLen: 42, wave: .7, fat: .75, gap: 80 }), 'left:-1px'));
     root.appendChild(band);
     // corner webs
     root.appendChild(el('div', 'hw-web', webSVG(170, 'scaleX(-1)'), 'right:0;top:0'));
@@ -329,7 +331,7 @@
       const deco = el('div', 'hw-card-deco');
       if (kind !== 'purple') {
         const sw = Math.round(Math.min(300, Math.max(110, r.width * (0.36 + (i % 3) * 0.06))));
-        deco.appendChild(el('div', 'hw-card-slime', dripSVG(sw, kind, i + 11, { maxLen: Math.min(44, r.height * 0.42), density: 0.75, side: Math.min(22, r.height * 0.22), taper: .3, band: 10, fat: .9 })));
+        deco.appendChild(el('div', 'hw-card-slime', dripSVG(sw, kind, i + 11, { maxLen: Math.min(44, r.height * 0.42), density: 0.75, side: Math.min(22, r.height * 0.22), taper: .3, band: 10, fat: .9, gap: sw / 3.4 })));
       }
       if (i % 3 !== 1) deco.appendChild(el('div', 'hw-pumpkin', `<div class="hw-pk-halo"></div>${pumpkinSVG(i % 2 ? 26 : 30)}`, `--d:${(2.6 + ((i * 0.37) % 1.4)).toFixed(2)}s;--dl:${(-(i * 1.13) % 3).toFixed(2)}s`));
       else if (kind === 'purple') deco.appendChild(el('div', 'hw-mini-ghost', ghostSVG(22, .9)));
@@ -375,7 +377,7 @@
       if (fw < 8) continue;
       const host = b.tagName === 'PROGRESS' ? b.parentElement : b;
       const hcs = getComputedStyle(host); ensurePositioned(host, hcs);
-      const o = el('div', 'hw-bar-slime', dripSVG(fw, kind, count + 101, { band: Math.max(7, r.height + 2), maxLen: 11, density: .75, fat: .85, fall: true, wave: .25 }));
+      const o = el('div', 'hw-bar-slime', dripSVG(fw, kind, count + 101, { band: Math.max(7, r.height + 2), maxLen: 11, fat: .85, gap: Math.max(30, fw / 3.2), fall: true, wave: .25 }));
       if (host !== b) { o.style.left = b.offsetLeft + 'px'; o.style.top = (b.offsetTop - 3) + 'px'; } else { o.style.left = '0'; o.style.top = '-3px'; }
       host.appendChild(o); added.push(o);
     }
