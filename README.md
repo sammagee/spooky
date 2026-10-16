@@ -4,6 +4,12 @@ Puts a Halloween overlay on any website: glossy orange and toxic-green slime dri
 
 ![screenshot](docs/screenshot.jpg)
 
+## Slime rendering
+Each slime strip is one continuous band, flush with the edge, with dense tapered drips that end in small teardrop tips. A gooey SVG filter (`feGaussianBlur` plus a `feColorMatrix` alpha threshold) fuses the drips into the band. Then `feOffset`/`feComposite` add a darker lower rim, `feSpecularLighting` adds wet gloss, a white specular streak runs along the band and down the drips, and a blurred flood adds a colored glow. On cards the slime starts at the top-right corner, wraps over it and a little way down the right border, and has a pumpkin sitting on it. Progress-bar fills are replaced by a gooey slime bar with short drips.
+
+## Gloom layer
+A full-viewport layer that ignores clicks: an edge vignette with an occasional subtle flicker, a light desaturating purple/green grade (`backdrop-filter: saturate(.88)`), two layers of slowly drifting `feTurbulence` fog near the bottom, and faint film grain. All of it is animated with transform/opacity only and stops under reduced-motion.
+
 ## Install
 1. Go to `chrome://extensions`
 2. Turn on **Developer mode** (top right)
@@ -19,6 +25,7 @@ Puts a Halloween overlay on any website: glossy orange and toxic-green slime dri
 - **Animation:** only `transform` and `opacity` are animated. Drips slowly stretch, droplets break off and fall, spiders bob up and down on their threads, ghosts drift and pulse, bats flap and one flits across the page, and pumpkins flicker. All of it is turned off under `prefers-reduced-motion: reduce`.
 
 ## Known limitations
+- The gloom grade sits above the page, so it also tones the slime a little. The grade is kept light so the slime stays vivid. `backdrop-filter` has some GPU cost on very large screens.
 - The card detection is a heuristic. Sites built on flat or borderless designs (Hacker News, much of GitHub's logged-out homepage) get only the page-level layer (top band, webs, spiders, ghosts), not per-card slime.
 - Statically positioned cards are switched to `position: relative` so the decorations can anchor to them. Cards with `overflow:hidden` clip any slime that hangs past their edges.
 - Turning the overlay off reloads the tab so the page goes back to exactly how it was.

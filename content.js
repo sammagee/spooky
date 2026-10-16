@@ -25,45 +25,68 @@
       <filter id="f${id}" x="-20%" y="-20%" width="140%" height="160%"><feGaussianBlur stdDeviation="3"/></filter>
     </defs>`;
   }
-  // A dripping slime strip: band of height `band`, drips up to `maxLen`.
-  function dripSVG(w, color, seed, { band = 10, maxLen = 40, density = 1, fall = true } = {}) {
-    const c = COLORS[color], id = ++uid, r = rng(seed * 7919 + 13);
-    const H = band + maxLen + 14;
-    // wavy bottom edge of the band
-    let d = `M0,0 L${w},0 L${w},${band * 0.7}`;
-    const steps = Math.max(4, Math.round(w / 26));
+  // Gooey slime: one continuous band + dense tapered drips fused by an alpha-threshold "goo" filter,
+  // then shaded (dark lower rim, specular highlight, colored glow).
+  const SLIME = {
+    orange: { hi: '#ff9a2e', mid: '#ff7000', lo: '#c24400', rim: '#8a2c00', glow: '#ff6a00' },
+    green:  { hi: '#9cff4a', mid: '#5ee01e', lo: '#2f9a0c', rim: '#1d6406', glow: '#5ee01e' },
+    purple: { hi: '#d9b8ff', mid: '#9b5cf0', lo: '#5a2ca8', rim: '#3a1a70', glow: '#9b5cf0' }
+  };
+  function dripSVG(w, color, seed, { band = 10, maxLen = 40, density = 1, fall = true, side = 0, wave = 0.35, taper = 0, fat = 1 } = {}) {
+    const c = SLIME[color], id = ++uid, r = rng(seed * 7919 + 13);
+    const H = band + maxLen + 12 + side;
+    // band with a wavy lower edge (top is flush with y=0, extended above to hide the goo blur edge)
+    const th = xx => taper ? Math.max(0.12, Math.min(1, xx / (taper * w))) : 1; // band thickness ramp
+    let d = `M-2,0 L${w + 3},0 L${w + 3},${band + side}`;
+    if (side) d += ` C${w - 2},${band + side * 0.7} ${w - 3},${band + 4} ${w - 8},${band}`;
+    const steps = Math.max(3, Math.round(w / 18));
     for (let i = steps - 1; i >= 0; i--) {
-      const x = (i / steps) * w, y = band * (0.65 + r() * 0.6);
-      d += ` Q${x + w / steps / 2},${y + 3} ${x},${y}`;
+      const x = (i / steps) * w, y = band * th(x) * (1 - wave / 2 + r() * wave);
+      d += ` Q${x + w / steps / 2},${y + band * th(x) * 0.25} ${x},${y}`;
     }
-    d += ' Z';
-    let drips = '', gloss = '';
-    let x = 4 + r() * 10;
-    while (x < w - 6) {
-      const thick = 5.5 + r() * 6.5;
-      const len = (r() < 0.35 ? 0.15 + r() * 0.3 : 0.4 + r() * 0.6) * maxLen;
-      const bulb = thick * (0.85 + r() * 0.3);
-      const y0 = band * 0.6, yEnd = band + len;
-      const neck = `M${x - thick},${y0} C${x - thick * 0.5},${y0 + 4} ${x - thick * 0.42},${yEnd - bulb} ${x - bulb * 0.8},${yEnd - bulb * 0.3}
-        L${x + bulb * 0.8},${yEnd - bulb * 0.3} C${x + thick * 0.42},${yEnd - bulb} ${x + thick * 0.5},${y0 + 4} ${x + thick},${y0} Z`;
-      const dur = (5 + r() * 6).toFixed(1), delay = (-r() * 10).toFixed(1);
-      let drop = '';
-      if (fall && len > maxLen * 0.55 && r() < 0.45) {
-        drop = `<circle class="hw-drop" cx="${x}" cy="${yEnd + 1}" r="${(bulb * 0.55).toFixed(1)}" fill="url(#b${id})"
-          style="animation-duration:${(6 + r() * 6).toFixed(1)}s;animation-delay:${(-r() * 8).toFixed(1)}s"/>`;
-      }
-      drips += `<g class="hw-drip" style="animation-duration:${dur}s;animation-delay:${delay}s">
-        <path d="${neck}" fill="url(#g${id})"/>
-        <circle cx="${x}" cy="${yEnd}" r="${bulb}" fill="url(#b${id})"/>
-        <ellipse cx="${x - bulb * 0.35}" cy="${yEnd - bulb * 0.35}" rx="${bulb * 0.28}" ry="${bulb * 0.38}" fill="#fff" opacity=".75"/>
-        <path d="M${x - thick * 0.45},${y0 + 3} Q${x - thick * 0.3},${(y0 + yEnd) / 2} ${x - bulb * 0.5},${yEnd - bulb}" stroke="#fff" stroke-opacity=".45" stroke-width="1.3" fill="none" stroke-linecap="round"/>
-      </g>${drop}`;
-      x += (thick * 2 + 8 + r() * 30) / density;
+    d += ` L-2,${band * th(0)} Z`;
+    let drips = '', drops = '', streaks = '';
+    let x = 3 + r() * 6, n = 0;
+    const xmax = w - (side ? 10 : 3);
+    while (x < xmax) {
+      const roll = (n++ % 4 === 2) ? 0.95 : r();
+      const len = (roll < 0.45 ? 0.08 + r() * 0.2 : roll < 0.8 ? 0.3 + r() * 0.35 : 0.7 + r() * 0.3) * maxLen;
+      const t = Math.min(band * 0.6, (2.6 + r() * 2.8) * fat + len * 0.05) * (taper ? Math.max(.5, th(x)) : 1); // half-width at root (thin streams)
+      const tip = t * (0.55 + r() * 0.2); // teardrop end, only a little wider than the stream
+      const y0 = band * th(x) * 0.6, yE = band * th(x) + len * (taper ? th(x) : 1);
+      drips += `<path d="M${x - t * 1.6},${y0} C${x - t * 0.6},${y0 + 2} ${x - t * 0.55},${yE - tip * 2} ${x - tip},${yE - tip * 0.6}
+        A${tip},${tip * 1.15} 0 1 0 ${x + tip},${yE - tip * 0.6} C${x + t * 0.55},${yE - tip * 2} ${x + t * 0.6},${y0 + 2} ${x + t * 1.6},${y0} Z"/>`;
+      if (len > maxLen * 0.3) streaks += `<path d="M${x - t * 0.35},${band + 1} L${x - tip * 0.35},${yE - tip * 0.9}" />`;
+      if (fall && len > maxLen * 0.6 && r() < 0.35)
+        drops += `<ellipse class="hw-drop" cx="${x}" cy="${yE + 1}" rx="${tip * 0.8}" ry="${tip}" fill="${c.mid}" style="animation-duration:${(6 + r() * 7).toFixed(1)}s;animation-delay:${(-r() * 9).toFixed(1)}s"/>`;
+      x += (2 * t + 4 + r() * (len > maxLen * 0.5 ? 14 : 8)) / density;
     }
-    gloss = `<path d="M3,${band * 0.3} Q${w * 0.25},${band * 0.15} ${w * 0.5},${band * 0.32} T${w - 3},${band * 0.28}" stroke="#fff" stroke-opacity=".55" stroke-width="1.6" fill="none" stroke-linecap="round"/>`;
-    return `<svg xmlns="${NS}" width="${w}" height="${H}" viewBox="0 0 ${w} ${H}" overflow="visible">${defs(c, id)}
-      <g filter="url(#f${id})" opacity=".55"><path d="${d}" fill="${c.glow}"/></g>
-      <path d="${d}" fill="url(#g${id})"/>${drips}${gloss}</svg>`;
+    const dur = (6 + r() * 4).toFixed(1);
+    return `<svg xmlns="${NS}" width="${w}" height="${H}" viewBox="0 0 ${w} ${H}" style="overflow:visible">
+    <defs>
+      <linearGradient id="g${id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${band + maxLen * 0.6}">
+        <stop offset="0" stop-color="${c.hi}"/><stop offset=".25" stop-color="${c.mid}"/><stop offset="1" stop-color="${c.lo}"/></linearGradient>
+      <filter id="f${id}" x="-5%" y="-30%" width="110%" height="160%" color-interpolation-filters="sRGB">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="b"/>
+        <feColorMatrix in="b" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 22 -9" result="goo"/>
+        <feComposite in="SourceGraphic" in2="goo" operator="atop" result="body"/>
+        <feOffset in="goo" dy="-2.5" result="up"/>
+        <feComposite in="goo" in2="up" operator="out" result="rimA"/>
+        <feGaussianBlur in="rimA" stdDeviation=".8" result="rimB"/>
+        <feFlood flood-color="${c.rim}" flood-opacity=".85"/><feComposite in2="rimB" operator="in" result="rim"/>
+        <feGaussianBlur in="goo" stdDeviation="1.8" result="bump"/>
+        <feSpecularLighting in="bump" surfaceScale="5" specularConstant=".75" specularExponent="35" lighting-color="#fff" result="spec">
+          <feDistantLight azimuth="240" elevation="30"/></feSpecularLighting>
+        <feComposite in="spec" in2="goo" operator="in" result="specIn"/>
+        <feGaussianBlur in="goo" stdDeviation="4" result="gl"/>
+        <feFlood flood-color="${c.glow}" flood-opacity=".55"/><feComposite in2="gl" operator="in" result="glow"/>
+        <feMerge><feMergeNode in="glow"/><feMergeNode in="body"/><feMergeNode in="rim"/><feMergeNode in="specIn"/></feMerge>
+      </filter>
+    </defs>
+    <g filter="url(#f${id})" fill="url(#g${id})"><g class="hw-goo" style="animation-duration:${dur}s"><path d="${d}"/>${drips}</g>${drops}</g>
+    <g stroke="#fff" fill="none" stroke-linecap="round" pointer-events="none">
+      <path d="M${taper ? w * taper * 0.6 : 2},${(band * 0.3).toFixed(1)} Q${w * 0.55},${band * 0.18} ${w * 0.55},${band * 0.34} T${w - 4},${band * 0.3}" stroke-opacity=".55" stroke-width="1.1"/>
+      <g class="hw-goo" style="animation-duration:${dur}s" stroke-opacity=".5" stroke-width="1">${streaks}</g></g></svg>`;
   }
 
   const pumpkinSVG = (s = 30) => `<svg xmlns="${NS}" width="${s}" height="${s}" viewBox="0 0 40 40">
@@ -119,6 +142,9 @@
   }
   function buildRoot() {
     root = el('div', 'hw-root'); root.setAttribute('aria-hidden', 'true');
+    root.appendChild(el('div', 'hw-grade'));
+    root.appendChild(el('div', 'hw-fog hw-fog1')); root.appendChild(el('div', 'hw-fog hw-fog2'));
+    root.appendChild(el('div', 'hw-vignette')); root.appendChild(el('div', 'hw-grain'));
     const bg = el('div', 'hw-bg');
     const bgItems = [
       ['ghost', 63, 46, 110, .13], ['ghost', 67, 84, 120, .12], ['ghost', 8, 40, 70, .08],
@@ -133,10 +159,10 @@
     root.appendChild(bg);
     // top band
     const w = innerWidth, band = el('div', 'hw-topband');
-    const segs = Math.max(2, Math.round(w / 420));
+    const segs = 2;
     for (let i = 0; i < segs; i++) {
       const sw = Math.ceil(w / segs) + 2;
-      band.appendChild(el('div', 'hw-seg', dripSVG(sw, i % 2 ? 'green' : 'orange', i + 1, { band: 9, maxLen: 44 }), `left:${i * (w / segs) - 1}px`));
+      band.appendChild(el('div', 'hw-seg', dripSVG(sw, i % 2 ? 'green' : 'orange', i + 1, { band: 18, maxLen: 44, density: 0.6, wave: .9, fat: 1.4 }), `left:${i * (w / segs) - 1}px`));
     }
     root.appendChild(band);
     // corner webs
@@ -202,8 +228,8 @@
       e.classList.add('hw-carded');
       const deco = el('div', 'hw-card-deco');
       if (kind !== 'purple') {
-        const sw = Math.round(Math.min(260, Math.max(110, r.width * 0.45)));
-        deco.appendChild(el('div', 'hw-card-slime', dripSVG(sw, kind, i + 11, { band: 8, maxLen: Math.min(46, r.height * 0.42), density: 0.85 })));
+        const sw = Math.round(Math.min(300, Math.max(110, r.width * (0.36 + (i % 3) * 0.06))));
+        deco.appendChild(el('div', 'hw-card-slime', dripSVG(sw, kind, i + 11, { maxLen: Math.min(44, r.height * 0.42), density: 0.75, side: Math.min(22, r.height * 0.22), taper: .3, band: 15, fat: 1.3 })));
       }
       if (i % 3 !== 1) deco.appendChild(el('div', 'hw-pumpkin', pumpkinSVG(i % 2 ? 26 : 30)));
       else if (kind === 'purple') deco.appendChild(el('div', 'hw-mini-ghost', ghostSVG(22, .9)));
@@ -249,7 +275,7 @@
       if (fw < 8) continue;
       const host = b.tagName === 'PROGRESS' ? b.parentElement : b;
       const hcs = getComputedStyle(host); ensurePositioned(host, hcs);
-      const o = el('div', 'hw-bar-slime', dripSVG(fw, kind, count + 101, { band: Math.max(9, r.height + 5), maxLen: 18, density: 1.1, fall: true }));
+      const o = el('div', 'hw-bar-slime', dripSVG(fw, kind, count + 101, { band: Math.max(10, r.height + 5), maxLen: 14, density: .55, fat: 1.25, fall: true, wave: .25 }));
       if (host !== b) { o.style.left = b.offsetLeft + 'px'; o.style.top = (b.offsetTop - 3) + 'px'; } else { o.style.left = '0'; o.style.top = '-3px'; }
       host.appendChild(o); added.push(o);
     }
