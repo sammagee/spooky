@@ -232,6 +232,12 @@
   // cats glance toward the cursor; the dangling skeleton chatters when it's close
   function turnCats() {
     if (ptr.x < -1000) return;
+    document.querySelectorAll('.hw-eyes, .hw-mummy').forEach(eg => {
+      const r = eg.getBoundingClientRect(); if (!r.width) return;
+      const dx = ptr.x - (r.left + r.width / 2), dy = ptr.y - (r.top + r.height / 2), d = Math.hypot(dx, dy) || 1, m = eg.classList.contains('hw-mummy') ? 1.6 : 3.2;
+      const tf = `translate(${(dx / d * m).toFixed(2)}px,${(dy / d * m * .6).toFixed(2)}px)`;
+      eg.querySelectorAll('.hw-pupil').forEach(p => { p.style.transform = tf; });
+    });
     const sk = document.querySelector('.hw-skel-hang');
     if (sk) { const r = sk.getBoundingClientRect(); sk.classList.toggle('hw-chatter', Math.hypot(ptr.x - (r.left + r.width / 2), ptr.y - (r.top + r.height * .6)) < 130); }
     document.querySelectorAll('.hw-cat').forEach(c => {
@@ -240,6 +246,17 @@
       const ang = Math.max(-14, Math.min(14, dx / 25)), tilt = Math.max(-4, Math.min(4, dy / 80));
       const h = c.querySelector('.hw-cat-head'); if (h) h.style.transform = `rotate(${(ang + tilt).toFixed(1)}deg)`;
     });
+  }
+  let boltTimer = 0;
+  function scheduleLightning(first) {
+    if (reduceMotion) return;
+    boltTimer = setTimeout(() => {
+      if (!enabled || !root) return;
+      const f = root.querySelector('.hw-flash'), b = root.querySelector('.hw-bolt');
+      if (b) b.style.left = (15 + Math.random() * 65).toFixed(0) + '%';
+      [f, b].forEach(n => { if (!n) return; n.classList.remove('hw-strike'); void n.offsetWidth; n.classList.add('hw-strike'); });
+      scheduleLightning(false);
+    }, first ? 6000 + Math.random() * 6000 : 30000 + Math.random() * 30000);
   }
   function stopSpiders() { cancelAnimationFrame(rafId); rafId = 0; spiders.length = 0; }
 
@@ -334,6 +351,51 @@
     <g class="hw-skel-jaw"><path d="M22 24 H38 C38 28 35 30 30 30 C25 30 22 28 22 24Z" fill="#dcd7c9"/>
       <path d="M25 24 V26.5 M28.3 24 V27 M31.7 24 V27 M35 24 V26.5" stroke="#8d877c" stroke-width=".8"/></g>
     <ellipse cx="25" cy="6" rx="4" ry="2" fill="#fff" opacity=".45"/></svg>`;
+  // --- zombie hand bursting from the ground, with dirt
+  const zHandSVG = () => `<svg xmlns="${NS}" width="44" height="70" viewBox="0 0 44 70" overflow="visible">
+    <path d="M14 70 V40 C12 34 8 30 6 24 C5 21 8 19 10 22 L14 29 L13 12 C13 9 17 9 17 12 L18 26 L19 8 C19 5 23 5 23 8 L23.5 26 L25 11 C25 8 29 8 29 11 L28.5 28 L31 18 C32 15 35.5 16 35 19 L32 38 C31 44 30 50 30 70Z" fill="#6f9a3e"/>
+    <path d="M14 70 V44 C15 52 19 56 22 56 M17 40 L20 44" stroke="#4d6e27" stroke-width="1.4" fill="none"/>
+    <path d="M18 34 C20 33 22 35 21 37" stroke="#8e3a2a" stroke-width="1.6" fill="none"/>
+    <path d="M12 52 H32" stroke="#e8e2d0" stroke-width="3" opacity=".55"/></svg>`;
+  const dirtHTML = () => Array.from({ length: 8 }, (_, i) => `<i style="--dx:${(i - 3.5) * 9}px;--dy:${-18 - (i % 3) * 10}px;animation-delay:${(i * .03).toFixed(2)}s"></i>`).join('');
+  // --- shuffling zombie (cartoon silhouette with green skin, arms out)
+  const zombieSVG = () => `<svg xmlns="${NS}" width="54" height="86" viewBox="0 0 54 86" overflow="visible">
+    <g class="hw-z-legs"><path d="M20 58 L16 84 M32 58 L36 84" stroke="#2a2e24" stroke-width="6" stroke-linecap="round"/></g>
+    <path d="M16 30 C16 26 36 26 37 30 L38 60 H15Z" fill="#3d4a5c"/><path d="M15 60 L20 54 L24 60 L29 55 L33 60 L38 55 V60Z" fill="#2c3646"/>
+    <g class="hw-z-arms"><path d="M34 33 L54 35 M33 40 L53 42" stroke="#6f9a3e" stroke-width="5" stroke-linecap="round"/></g>
+    <circle cx="27" cy="18" r="10" fill="#7aa645"/><path d="M19 12 C22 6 33 6 36 13" stroke="#3a4a22" stroke-width="3" fill="none"/>
+    <circle cx="31" cy="17" r="2.6" fill="#f2f0d8"/><circle cx="31.5" cy="17.5" r="1" fill="#1a1a1a"/><circle cx="24" cy="18" r="1.6" fill="#1a1a1a"/>
+    <path d="M24 24 L33 23" stroke="#2a3418" stroke-width="1.5"/></svg>`;
+  // --- cauldron with bubbling goo
+  const cauldronSVG = () => `<svg xmlns="${NS}" width="78" height="66" viewBox="0 0 78 66" overflow="visible">
+    <ellipse cx="39" cy="22" rx="34" ry="8" fill="#5cc41f"/><ellipse cx="33" cy="20" rx="14" ry="3" fill="#a6ec6a" opacity=".6"/>
+    ${[[24, 4.5, 0], [42, 3.5, .8], [54, 4, 1.6], [33, 3, 2.3]].map(([x, r, d]) => `<circle class="hw-bubble" cx="${x}" cy="20" r="${r}" fill="#7fdc3a" style="animation-delay:${d}s"/>`).join('')}
+    <path d="M4 22 C4 46 16 60 39 60 C62 60 74 46 74 22 C66 28 12 28 4 22Z" fill="#141216"/>
+    <path d="M10 30 C14 46 24 54 34 56" stroke="#3a3540" stroke-width="2" fill="none" opacity=".8"/>
+    <path d="M14 58 L10 66 M64 58 L68 66" stroke="#141216" stroke-width="4" stroke-linecap="round"/>
+    <path d="M2 22 C2 18 76 18 76 22 C76 26 2 26 2 22Z" fill="none" stroke="#25222a" stroke-width="3"/></svg>`;
+  // --- candy
+  const candyCornSVG = (s = 16, rot = 0) => `<svg xmlns="${NS}" width="${s}" height="${s}" viewBox="0 0 20 20" style="transform:rotate(${rot}deg)">
+    <path d="M10 1 C13 6 17 13 17 16 C17 19 3 19 3 16 C3 13 7 6 10 1Z" fill="#f7f3e6"/><path d="M5.2 10 C8 9.2 12 9.2 14.8 10 C16 12.5 17 14.5 17 16 C17 19 3 19 3 16 C3 14.5 4 12.5 5.2 10Z" fill="#f08a2a"/>
+    <path d="M3.6 14.4 C7 13.6 13 13.6 16.4 14.4 L17 16 C17 19 3 19 3 16Z" fill="#f2c94c"/></svg>`;
+  const wrappedCandySVG = (s = 22, c = '#a855f7', rot = 0) => `<svg xmlns="${NS}" width="${s}" height="${f1(s * .55)}" viewBox="0 0 40 22" style="transform:rotate(${rot}deg)">
+    <path d="M10 11 L1 3 L3 11 L1 19Z M30 11 L39 3 L37 11 L39 19Z" fill="${c}" opacity=".85"/><ellipse cx="20" cy="11" rx="10.5" ry="8" fill="${c}"/>
+    <path d="M14 5 L18 17 M20 4 L24 17 M26 6 L28 13" stroke="#fff" stroke-opacity=".45" stroke-width="2"/><ellipse cx="16" cy="7.5" rx="3" ry="1.6" fill="#fff" opacity=".5"/></svg>`;
+  // --- mummy wraps for a card corner (overlay layer); eyes peek between the wraps
+  const mummySVG = () => `<svg xmlns="${NS}" width="70" height="70" viewBox="0 0 70 70" overflow="visible">
+    <defs><linearGradient id="mw${++uid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#efe9d8"/><stop offset="1" stop-color="#c9c1aa"/></linearGradient></defs>
+    <g fill="url(#mw${uid})" stroke="#a69c84" stroke-width=".6">
+      <path d="M-2 26 L26 -2 L36 -2 L-2 36Z"/><path d="M-2 48 L48 -2 L56 2 L2 56Z"/><path d="M8 62 L62 8 L64 16 L16 64Z" opacity=".95"/></g>
+    <g class="hw-blinker"><ellipse cx="22" cy="31" rx="4" ry="3.2" fill="#fff6c8"/><ellipse cx="33" cy="20" rx="4" ry="3.2" fill="#fff6c8"/>
+      <circle class="hw-pupil" cx="22" cy="31" r="1.7" fill="#1c1410"/><circle class="hw-pupil" cx="33" cy="20" r="1.7" fill="#1c1410"/></g>
+    <path d="M-2 40 L40 -2" stroke="#16121a" stroke-width="2.4" opacity=".7"/></svg>`;
+  // --- a pair of glowing eyes (pupils track the cursor)
+  const eyesSVG = (col = '#ffd84a', blood = false) => `<svg xmlns="${NS}" width="46" height="20" viewBox="0 0 46 20" overflow="visible">
+    <g class="hw-blinker">${[11, 35].map(x => `<ellipse cx="${x}" cy="10" rx="8.5" ry="6.5" fill="${blood ? '#f4efe6' : col}"/>
+      ${blood ? `<path d="M${x - 8} 9 L${x - 4} 10 L${x - 2} 8 M${x + 8} 11 L${x + 4} 10 L${x + 5} 12" stroke="#c0392b" stroke-width=".6" fill="none"/>` : ''}
+      <g class="hw-pupil"><ellipse cx="${x}" cy="10" rx="${blood ? 3.4 : 1.8}" ry="${blood ? 3.4 : 5}" fill="${blood ? '#3b7fd1' : '#120c06'}"/>${blood ? `<circle cx="${x}" cy="10" r="1.7" fill="#0c0c10"/>` : ''}</g>`).join('')}</g></svg>`;
+  // --- lightning bolt
+  const boltSVG = () => `<svg xmlns="${NS}" width="120" height="300" viewBox="0 0 120 300"><path d="M70 0 L42 110 L66 112 L30 220 L54 222 L22 300 L96 180 L70 178 L102 80 L78 78 L104 0Z" fill="#e9dcff" opacity=".7"/></svg>`;
   const batSVG = (s, op) => `<svg xmlns="${NS}" width="${s}" height="${s / 2}" viewBox="0 0 60 30" opacity="${op}">
     <g class="hw-wings"><path d="M30 12 C25 4 15 2 2 6 C8 9 9 13 8 17 C13 14 17 16 18 21 C22 16 26 17 30 20 C34 17 38 16 42 21 C43 16 47 14 52 17 C51 13 52 9 58 6 C45 2 35 4 30 12Z" fill="#0d0a10"/></g>
     <circle cx="30" cy="13" r="3.5" fill="#0d0a10"/></svg>`;
@@ -400,6 +462,21 @@
     root.appendChild(el('div', 'hw-skel hw-skel-peek', skeletonSVG(64, false)));
     // small skeleton dangling from the top border lights; chatters + waves when the cursor comes near
     root.appendChild(el('div', 'hw-skel hw-skel-hang', `<div class="hw-skel-cord"></div>${skeletonSVG(38, true)}`));
+    // zombie hand bursting from the bottom edge (CSS cycle) + shuffling zombie (CSS cycle)
+    root.appendChild(el('div', 'hw-zhand', `${zHandSVG()}<div class="hw-dirt">${dirtHTML()}</div>`));
+    root.appendChild(el('div', 'hw-zombie', zombieSVG()));
+    // cauldron in the bottom-right corner (clear of the cat at left and the peeker at 62%)
+    root.appendChild(el('div', 'hw-cauldron', `<div class="hw-steam"></div>${cauldronSVG()}`));
+    // a little candy scattered along the bottom edge + one that occasionally tumbles down
+    [['corn', 19, 14, -20], ['wrap', 47, 22, 10, '#a855f7'], ['corn', 54, 13, 25], ['wrap', 78, 20, -15, '#f08a2a']].forEach(([k, x, sz, rot, c]) =>
+      root.appendChild(el('div', 'hw-candy', k === 'corn' ? candyCornSVG(sz, rot) : wrappedCandySVG(sz, c, rot), `left:${x}%`)));
+    root.appendChild(el('div', 'hw-candy-fall', candyCornSVG(16, 0)));
+    // eyes in dark spots that follow the cursor (capped at 3 pairs)
+    [['6%', '52%', '#ffd84a', false], ['91%', '58%', '#9cff4a', false], ['30%', '74%', '', true]].forEach(([x, y, c, b], i) =>
+      root.appendChild(el('div', 'hw-eyes', eyesSVG(c, b), `left:${x};top:${y};--bd:${(4 + i * 1.7).toFixed(1)}s`)));
+    // lightning: flash overlay + faint bolt (scheduled in JS, randomised 30-60s)
+    root.insertBefore(el('div', 'hw-bolt', boltSVG()), root.querySelector('.hw-bg').nextSibling);
+    root.appendChild(el('div', 'hw-flash'));
     // black cat sitting in the bottom-left corner
     root.appendChild(el('div', 'hw-cat hw-cat-corner', catSVG(52)));
     // peeking ghost
@@ -493,6 +570,7 @@
       if (r.height < 72 && r.width > 500) { // banner/alert
         e.style.setProperty('border-color', COLORS.orange.mid, 'important');
         deco.appendChild(i % 2 ? el('div', 'hw-mini-ghost hw-in-banner', miniGhostSVG(26)) : pumpkin(28, ' hw-in-banner'));
+        if (i === 0) deco.appendChild(el('div', 'hw-mummy', mummySVG()));
         e.classList.add('hw-carded'); e.dataset.hwSlime = 'orange'; track(e, deco, 'card'); return;
       }
       const ci = cardSeq++;
@@ -509,6 +587,7 @@
       if (topper === 'tomb') deco.appendChild(el('div', 'hw-card-tomb', tombSVG(22, .95)));
       if (topper === 'bat') deco.appendChild(el('div', 'hw-card-bat', batSVG(30, .85)));
       if (topper === 'none') deco.appendChild(el('div', 'hw-cat hw-cat-card', catSVG(40)));
+      if (ci === 1 || ci === 6) deco.appendChild(el('div', 'hw-mummy', mummySVG()));
       if (ci % 3 === 2) deco.appendChild(el('div', 'hw-card-web', webSVG(60, 'scaleX(-1)')));
       track(e, deco, 'card');
     });
@@ -586,6 +665,7 @@
     observer.observe(document.body, { childList: true, subtree: true });
     document.addEventListener('scroll', queueSync, { capture: true, passive: true });
     if (!reduceMotion) document.addEventListener('pointermove', onPointer, { passive: true });
+    scheduleLightning(true);
     addEventListener('resize', queueSync);
     let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (!enabled) return; root.remove(); buildRoot(); tracked.forEach(t => cardLayer.appendChild(t.node)); queueSync(); }, 400); });
     syncTimer = setInterval(queueSync, 500); // catches layout shifts that move cards without resizing them
@@ -593,7 +673,7 @@
   function disable() {
     if (!enabled) return; enabled = false;
     observer && observer.disconnect(); observer = null;
-    root && root.remove(); stopSpiders(); clearInterval(syncTimer); tracked.splice(0);
+    root && root.remove(); stopSpiders(); clearInterval(syncTimer); clearTimeout(boltTimer); tracked.splice(0);
     added.splice(0).forEach(n => n.remove());
     touched.reverse().splice(0).forEach(([e, s]) => { e.style.cssText = s; });
     document.querySelectorAll('.hw-carded').forEach(e => e.classList.remove('hw-carded'));

@@ -133,3 +133,45 @@
 @keyframes hw-chatter{from{transform:translateY(0)}to{transform:translateY(2.2px)}}
 @keyframes hw-skel-wave2{from{transform:rotate(-26deg)}to{transform:rotate(16deg)}}
 @media (prefers-reduced-motion: reduce){.hw-skel-peek{transform:translateY(22%)!important}.hw-skel *,.hw-skel{animation:none!important}}
+
+/* ---- zombie hand + walker ---- */
+.hw-zhand{left:31%;bottom:0;width:44px;height:70px}
+.hw-zhand svg{transform:translateY(105%);animation:hw-zhand 42s ease-out infinite;animation-delay:-20s}
+@keyframes hw-zhand{0%,58%{transform:translateY(105%)}60%{transform:translateY(18%) rotate(-4deg)}61%{transform:translateY(24%) rotate(3deg)}62%,74%{transform:translateY(20%) rotate(-2deg)}68%{transform:translateY(20%) rotate(4deg)}78%,100%{transform:translateY(105%)}}
+.hw-dirt{position:absolute;left:22px;bottom:2px}
+.hw-dirt i{position:absolute;width:4px;height:4px;border-radius:40%;background:#4a3a28;opacity:0;animation:hw-dirt 42s ease-out infinite;animation-delay:-20s}
+@keyframes hw-dirt{0%,59.5%{opacity:0;transform:translate(0,0)}60%{opacity:.9;transform:translate(0,0)}61.5%{opacity:.8;transform:translate(var(--dx),var(--dy))}63.5%,100%{opacity:0;transform:translate(calc(var(--dx) * 1.3),6px)}}
+.hw-zombie{left:0;bottom:4px;opacity:0;animation:hw-zwalk 54s linear infinite;animation-delay:-8s}
+.hw-zombie svg{opacity:.8;filter:drop-shadow(0 0 3px rgba(110,160,60,.35))}
+@keyframes hw-zwalk{0%{opacity:0;transform:translateX(-70px)}1%{opacity:1}44%{opacity:1;transform:translateX(calc(100vw + 10px))}45%,100%{opacity:0;transform:translateX(calc(100vw + 70px))}}
+.hw-z-legs{transform-box:fill-box;transform-origin:50% 0;animation:hw-zstep 1.4s ease-in-out infinite alternate}
+.hw-z-arms{transform-box:fill-box;transform-origin:0 50%;animation:hw-zarm 2.8s ease-in-out infinite alternate}
+@keyframes hw-zstep{from{transform:skewX(-8deg)}to{transform:skewX(8deg)}}
+@keyframes hw-zarm{from{transform:rotate(-4deg)}to{transform:rotate(5deg)}}
+/* ---- cauldron ---- */
+.hw-cauldron{right:150px;bottom:0}
+.hw-cauldron svg{display:block}
+.hw-steam{position:absolute;left:4px;top:-34px;width:70px;height:60px;border-radius:50%;background:radial-gradient(ellipse at 50% 70%,rgba(110,220,60,.32),rgba(110,220,60,0) 70%);animation:hw-steam 4s ease-in-out infinite}
+@keyframes hw-steam{0%,100%{opacity:.55;transform:translateY(0) scale(1)}50%{opacity:.95;transform:translateY(-5px) scale(1.08)}}
+.hw-bubble{transform-box:fill-box;transform-origin:50% 100%;animation:hw-bubble 3s ease-in infinite}
+@keyframes hw-bubble{0%{transform:translateY(4px) scale(.3);opacity:0}20%{opacity:1}75%{transform:translateY(-10px) scale(1);opacity:1}82%{transform:translateY(-12px) scale(1.35);opacity:0}100%{opacity:0}}
+/* ---- candy ---- */
+.hw-candy{bottom:2px;opacity:.9}
+.hw-candy svg{display:block}
+.hw-candy-fall{left:66%;top:0;opacity:0;animation:hw-candyfall 40s ease-in infinite;animation-delay:-5s}
+@keyframes hw-candyfall{0%,80%{opacity:0;transform:translateY(-30px) rotate(0)}81%{opacity:.9}97%{opacity:.9;transform:translateY(calc(100vh - 20px)) rotate(540deg)}100%{opacity:0;transform:translateY(calc(100vh - 20px)) rotate(560deg)}}
+/* ---- lightning (seizure-safe: two short flashes within 300ms, then 30-60s rest) ---- */
+.hw-flash{inset:0;background:rgba(225,215,255,1);opacity:0}
+.hw-flash.hw-strike{animation:hw-flash .32s linear 1}
+@keyframes hw-flash{0%{opacity:0}8%{opacity:.16}25%{opacity:0}50%{opacity:.12}75%,100%{opacity:0}}
+.hw-bolt{top:0;opacity:0;filter:drop-shadow(0 0 8px rgba(200,180,255,.8))}
+.hw-bolt.hw-strike{animation:hw-bolt .6s ease-out 1}
+@keyframes hw-bolt{0%{opacity:0}8%{opacity:.38}25%{opacity:.1}50%{opacity:.3}100%{opacity:0}}
+/* ---- mummy wraps (card corner, overlay) ---- */
+.hw-mummy{position:absolute;left:-3px;top:-3px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
+/* ---- eyes ---- */
+.hw-eyes svg{display:block;filter:drop-shadow(0 0 4px rgba(255,220,80,.55))}
+.hw-eyes .hw-pupil,.hw-mummy .hw-pupil{transition:transform .25s ease-out}
+.hw-blinker{transform-box:fill-box;transform-origin:50% 50%;animation:hw-blink var(--bd,5s) infinite}
+@media (prefers-reduced-motion: reduce){.hw-flash,.hw-bolt,.hw-zombie,.hw-candy-fall{display:none}.hw-zhand svg,.hw-dirt i{animation:none!important}
+  .hw-steam,.hw-bubble,.hw-z-legs,.hw-z-arms,.hw-blinker{animation:none!important}.hw-pupil{transition:none!important}}
