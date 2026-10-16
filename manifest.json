@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Haunted Slime Overlay",
+  "version": "1.0.0",
+  "description": "Applies a dripping-slime Halloween overlay (pumpkins, spiders, webs, ghosts, bats) to any website. Toggle per site.",
+  "permissions": ["storage"],
+  "action": { "default_popup": "popup.html", "default_title": "Haunted Slime" },
+  "icons": { "128": "icon128.png" },
+  "content_scripts": [{
+    "matches": ["<all_urls>"],
+    "js": ["content.js"],
+    "css": ["halloween.css"],
+    "run_at": "document_idle"
+  }]
+}
