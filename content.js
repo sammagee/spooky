@@ -229,9 +229,11 @@
       rafId = requestAnimationFrame(loop); };
     rafId = requestAnimationFrame(loop);
   }
-  // cats glance toward the cursor
+  // cats glance toward the cursor; the dangling skeleton chatters when it's close
   function turnCats() {
     if (ptr.x < -1000) return;
+    const sk = document.querySelector('.hw-skel-hang');
+    if (sk) { const r = sk.getBoundingClientRect(); sk.classList.toggle('hw-chatter', Math.hypot(ptr.x - (r.left + r.width / 2), ptr.y - (r.top + r.height * .6)) < 130); }
     document.querySelectorAll('.hw-cat').forEach(c => {
       const r = c.getBoundingClientRect(); if (!r.width) return;
       const dx = ptr.x - (r.left + r.width / 2), dy = ptr.y - r.top;
@@ -314,6 +316,24 @@
     out += clip(1.5, 1.5) + clip(W - 1.5, 1.5) + clip(W - 1.5, H - 1.5) + clip(1.5, H - 1.5);
     return `<svg xmlns="${NS}" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${out}</svg>`;
   }
+  // cartoon skeleton: off-white bones, soft gray shading, dark sockets; arm + jaw are separate groups for animation
+  const skeletonSVG = (s = 60, legs = true) => `<svg xmlns="${NS}" width="${s}" height="${f1(s * (legs ? 1.6 : 1.15))}" viewBox="0 0 60 ${legs ? 96 : 69}" overflow="visible">
+    <defs><radialGradient id="sk${++uid}" cx=".4" cy=".35" r=".75"><stop offset="0" stop-color="#f6f3ea"/><stop offset=".7" stop-color="#e2ddd0"/><stop offset="1" stop-color="#b9b3a6"/></radialGradient></defs>
+    <g stroke="#e9e5da" stroke-linecap="round" fill="none">
+      <path d="M30 30 V58" stroke-width="3.2"/>
+      <path d="M21 36 Q30 33 39 36 M20 41 Q30 38 40 41 M21 46 Q30 43.5 39 46 M23 51 Q30 49 37 51" stroke-width="2.2"/>
+      <path d="M21 33 L14 44 L12 54" stroke-width="2.4"/><circle cx="11.5" cy="56" r="2.2" fill="#e9e5da" stroke="none"/>
+      <g class="hw-skel-arm"><path d="M39 33 L47 25 L52 15" stroke-width="2.4"/><path d="M52 15 L50 10 M52 15 L53 9.5 M52 15 L55.5 11" stroke-width="1.4"/></g>
+      ${legs ? '<path d="M25 64 L23 78 L24 92 M35 64 L37 78 L36 92" stroke-width="2.6"/><path d="M24 92 L19 94 M36 92 L41 94" stroke-width="2.2"/>' : ''}
+    </g>
+    ${legs ? '<path d="M22 58 C22 55 38 55 38 58 C38 63 34 66 30 64 C26 66 22 63 22 58Z" fill="#e2ddd0"/>' : ''}
+    <path d="M17 15 C17 6 23 1 30 1 C37 1 43 6 43 15 C43 20 41 23 38 24 L22 24 C19 23 17 20 17 15Z" fill="url(#sk${uid})"/>
+    <ellipse cx="24.5" cy="14" rx="3.6" ry="4.2" fill="#17131c"/><ellipse cx="35.5" cy="14" rx="3.6" ry="4.2" fill="#17131c"/>
+    <ellipse cx="24" cy="13" rx="1" ry="1.2" fill="#c8f03c" opacity=".55"/><ellipse cx="35" cy="13" rx="1" ry="1.2" fill="#c8f03c" opacity=".55"/>
+    <path d="M30 17.5 L28.4 21 H31.6Z" fill="#2a2430"/>
+    <g class="hw-skel-jaw"><path d="M22 24 H38 C38 28 35 30 30 30 C25 30 22 28 22 24Z" fill="#dcd7c9"/>
+      <path d="M25 24 V26.5 M28.3 24 V27 M31.7 24 V27 M35 24 V26.5" stroke="#8d877c" stroke-width=".8"/></g>
+    <ellipse cx="25" cy="6" rx="4" ry="2" fill="#fff" opacity=".45"/></svg>`;
   const batSVG = (s, op) => `<svg xmlns="${NS}" width="${s}" height="${s / 2}" viewBox="0 0 60 30" opacity="${op}">
     <g class="hw-wings"><path d="M30 12 C25 4 15 2 2 6 C8 9 9 13 8 17 C13 14 17 16 18 21 C22 16 26 17 30 20 C34 17 38 16 42 21 C43 16 47 14 52 17 C51 13 52 9 58 6 C45 2 35 4 30 12Z" fill="#0d0a10"/></g>
     <circle cx="30" cy="13" r="3.5" fill="#0d0a10"/></svg>`;
@@ -376,6 +396,10 @@
     root.insertBefore(el('div', 'hw-moon'), root.querySelector('.hw-bg').nextSibling);
     const sparks = Array.from({ length: 7 }, (_, i) => `<i style="left:${-8 - i * 12}px;top:${44 + (i % 3) * 4}px;animation-delay:${(i * .12).toFixed(2)}s"></i>`).join('');
     root.querySelector('.hw-bg').appendChild(el('div', 'hw-witch', `${witchSVG()}<div class="hw-sparks">${sparks}</div>`));
+    // skeleton peeking up from the bottom edge (CSS cycle: rises, waves, sinks)
+    root.appendChild(el('div', 'hw-skel hw-skel-peek', skeletonSVG(64, false)));
+    // small skeleton dangling from the top border lights; chatters + waves when the cursor comes near
+    root.appendChild(el('div', 'hw-skel hw-skel-hang', `<div class="hw-skel-cord"></div>${skeletonSVG(38, true)}`));
     // black cat sitting in the bottom-left corner
     root.appendChild(el('div', 'hw-cat hw-cat-corner', catSVG(52)));
     // peeking ghost

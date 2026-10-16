@@ -116,3 +116,20 @@
 @keyframes hw-blink{0%,93%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
 .hw-fleeing .hw-legs{animation-duration:.09s!important}
 @media (prefers-reduced-motion: reduce){.hw-witch,.hw-sparks{display:none}.hw-ledge,.hw-bulb,.hw-cat-tail,.hw-cat-eyes{animation:none!important}.hw-cat-head{transition:none}}
+
+/* ---- skeletons ---- */
+.hw-skel svg{display:block;overflow:visible;filter:drop-shadow(0 0 4px rgba(235,230,215,.25))}
+.hw-skel-peek{left:62%;bottom:0;transform:translateY(100%);animation:hw-skel-rise 36s ease-in-out infinite;animation-delay:-14s}
+.hw-skel-peek .hw-skel-arm{transform-box:fill-box;transform-origin:0% 100%;animation:hw-skel-wave 36s ease-in-out infinite;animation-delay:-14s}
+@keyframes hw-skel-rise{0%,62%{transform:translateY(100%)}67%,84%{transform:translateY(22%)}70%{transform:translateY(18%)}89%,100%{transform:translateY(100%)}}
+@keyframes hw-skel-wave{0%,68%{transform:rotate(0)}70%,74%,78%{transform:rotate(-24deg)}72%,76%,80%{transform:rotate(14deg)}82%,100%{transform:rotate(0)}}
+.hw-skel-hang{right:23%;top:4px;transform-origin:50% 0;animation:hw-skel-sway 4.6s ease-in-out infinite alternate}
+.hw-skel-cord{width:1px;height:26px;margin-left:19px;background:linear-gradient(#3a2f44,#8a8494)}
+@keyframes hw-skel-sway{from{transform:rotate(-7deg)}to{transform:rotate(7deg)}}
+.hw-skel .hw-skel-jaw{transform-box:fill-box;transform-origin:50% 0}
+.hw-skel-hang .hw-skel-arm{transform-box:fill-box;transform-origin:0% 100%}
+.hw-chatter .hw-skel-jaw{animation:hw-chatter .14s steps(2) infinite}
+.hw-chatter .hw-skel-arm{animation:hw-skel-wave2 .5s ease-in-out infinite alternate}
+@keyframes hw-chatter{from{transform:translateY(0)}to{transform:translateY(2.2px)}}
+@keyframes hw-skel-wave2{from{transform:rotate(-26deg)}to{transform:rotate(16deg)}}
+@media (prefers-reduced-motion: reduce){.hw-skel-peek{transform:translateY(22%)!important}.hw-skel *,.hw-skel{animation:none!important}}
