@@ -287,22 +287,32 @@
       <g class="hw-cat-eyes"><ellipse cx="19" cy="17" rx="2.6" ry="2.2" fill="#c8f03c"/><ellipse cx="28" cy="17" rx="2.6" ry="2.2" fill="#c8f03c"/>
       <ellipse cx="19" cy="17" rx=".8" ry="2" fill="#0a0a0a"/><ellipse cx="28" cy="17" rx=".8" ry="2" fill="#0a0a0a"/></g></g>
     </g></svg>`;
-  // sagging catenary of purple lights
-  function lightsSVG(w) {
-    const span = Math.max(260, w / Math.round(w / 340)), sag = 36, cols = ['#a855f7', '#c084fc', '#d946ef', '#8b5cf6', '#a855f7', '#e879f9'];
-    const a = sag / ((span / 2) ** 2) * 1; let wire = '', bulbs = '', k = 0;
-    const cat = (x0, x) => { const u = x - x0 - span / 2; return 6 + sag - sag * Math.cosh(u / (span / 2) * 1.2) / Math.cosh(1.2) + 0 * a; };
-    for (let x0 = -span / 2; x0 < w; x0 += span) {
-      let d = ''; for (let i = 0; i <= 24; i++) { const x = x0 + span * i / 24; d += (i ? 'L' : 'M') + f1(x) + ',' + f1(cat(x0, x)); }
-      wire += `<path d="${d}"/>`;
-      for (let x = x0 + 18; x < x0 + span - 10; x += 38) {
-        const y = cat(x0, x), c = cols[k % cols.length];
-        bulbs += `<g transform="translate(${f1(x)},${f1(y)})"><rect x="-1.6" y="0" width="3.2" height="3.5" rx=".6" fill="#2a2030"/>
+  // purple string of lights around the whole viewport border: wire flush to the edges, small sags between clip points
+  function lightsSVG(W, H) {
+    const cols = ['#a855f7', '#c084fc', '#d946ef', '#8b5cf6', '#a855f7', '#e879f9'], SAG = 7, CLIP = 150, GAP = 40;
+    let k = 0, out = '';
+    // an edge from (x0,y0) to (x1,y1); (nx,ny) = inward normal
+    const edge = (x0, y0, x1, y1, nx, ny, cls) => {
+      const L = Math.hypot(x1 - x0, y1 - y0), ux = (x1 - x0) / L, uy = (y1 - y0) / L;
+      const segs = Math.max(1, Math.round(L / CLIP)), sl = L / segs;
+      const at = t => { const local = (t % sl) / sl, sag = SAG * 4 * local * (1 - local); // parabola between clips
+        return [x0 + ux * t + nx * (1.5 + sag), y0 + uy * t + ny * (1.5 + sag)]; };
+      let d = ''; for (let i = 0, n = Math.ceil(L / 6); i <= n; i++) { const [x, y] = at(Math.min(L, i * L / n)); d += (i ? 'L' : 'M') + f1(x) + ',' + f1(y); }
+      const nb = Math.max(1, Math.round(L / GAP)), step = L / nb, rot = Math.atan2(ny, nx) * 180 / Math.PI - 90;
+      let bulbs = '';
+      for (let i = 0; i < nb; i++) {
+        const [x, y] = at(step * (i + .5)), c = cols[k % cols.length];
+        bulbs += `<g transform="translate(${f1(x)},${f1(y)}) rotate(${f1(rot)})"><rect x="-1.6" y="0" width="3.2" height="3.5" rx=".6" fill="#2a2030"/>
           <ellipse class="hw-bulb" cx="0" cy="7.5" rx="3.3" ry="4.4" fill="${c}" style="animation-duration:${(2.2 + (k * 0.71) % 2.4).toFixed(2)}s;animation-delay:${(-(k * 1.37) % 3).toFixed(2)}s"/>
           <ellipse cx="-1" cy="6" rx=".9" ry="1.5" fill="#fff" opacity=".55"/></g>`; k++;
       }
-    }
-    return `<svg xmlns="${NS}" width="${w}" height="56" viewBox="0 0 ${w} 56"><g stroke="#241c2a" stroke-width="1.2" fill="none">${wire}</g>${bulbs}</svg>`;
+      return `<g class="hw-ledge ${cls}"><path d="${d}" stroke="#241c2a" stroke-width="1.3" fill="none"/>${bulbs}</g>`;
+    };
+    out += edge(0, 0, W, 0, 0, 1, 'hw-ledge-t') + edge(W, 0, W, H, -1, 0, 'hw-ledge-r') + edge(W, H, 0, H, 0, -1, 'hw-ledge-b') + edge(0, H, 0, 0, 1, 0, 'hw-ledge-l');
+    // corner clips so the wire wraps naturally
+    const clip = (x, y) => `<circle cx="${x}" cy="${y}" r="2.6" fill="#241c2a"/>`;
+    out += clip(1.5, 1.5) + clip(W - 1.5, 1.5) + clip(W - 1.5, H - 1.5) + clip(1.5, H - 1.5);
+    return `<svg xmlns="${NS}" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${out}</svg>`;
   }
   const batSVG = (s, op) => `<svg xmlns="${NS}" width="${s}" height="${s / 2}" viewBox="0 0 60 30" opacity="${op}">
     <g class="hw-wings"><path d="M30 12 C25 4 15 2 2 6 C8 9 9 13 8 17 C13 14 17 16 18 21 C22 16 26 17 30 20 C34 17 38 16 42 21 C43 16 47 14 52 17 C51 13 52 9 58 6 C45 2 35 4 30 12Z" fill="#0d0a10"/></g>
@@ -360,7 +370,8 @@
     addCrawler(977);
     startSpiders();
     // purple string of lights just under the slime band
-    root.appendChild(el('div', 'hw-lights', lightsSVG(innerWidth + 40)));
+    // sized to the layout viewport (clientWidth/Height exclude scrollbars, so they stay uncovered)
+    root.appendChild(el('div', 'hw-lights', lightsSVG(document.documentElement.clientWidth, document.documentElement.clientHeight)));
     // faint moon + witch crossing on an arc every ~20-40s (pure CSS keyframes)
     root.insertBefore(el('div', 'hw-moon'), root.querySelector('.hw-bg').nextSibling);
     const sparks = Array.from({ length: 7 }, (_, i) => `<i style="left:${-8 - i * 12}px;top:${44 + (i % 3) * 4}px;animation-delay:${(i * .12).toFixed(2)}s"></i>`).join('');

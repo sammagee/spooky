@@ -87,11 +87,13 @@
 .hw-ov .hw-card-slime{right:-1px}
 
 /* ---- lights ---- */
-.hw-lights{left:-20px;top:12px;transform-origin:50% 0;animation:hw-lsway 7s ease-in-out infinite alternate;filter:drop-shadow(0 0 3px rgba(168,85,247,.8)) drop-shadow(0 0 7px rgba(217,70,239,.35))}
+.hw-lights{left:0;top:0;filter:drop-shadow(0 0 3px rgba(168,85,247,.8)) drop-shadow(0 0 7px rgba(217,70,239,.35))}
 .hw-lights svg{display:block}
 .hw-bulb{animation:hw-twinkle 3s ease-in-out infinite}
 @keyframes hw-twinkle{0%,100%{opacity:1}40%{opacity:.45}55%{opacity:.9}70%{opacity:.6}}
-@keyframes hw-lsway{from{transform:rotate(-.25deg) translateY(0)}to{transform:rotate(.25deg) translateY(1.5px)}}
+.hw-ledge{animation:hw-lsway 6s ease-in-out infinite alternate}
+.hw-ledge-r{--sx:-1.5px;--sy:0;animation-delay:-1.5s}.hw-ledge-b{--sx:0;--sy:-1.5px;animation-delay:-3s}.hw-ledge-l{--sx:1.5px;--sy:0;animation-delay:-4.5s}
+@keyframes hw-lsway{from{transform:translate(0,0)}to{transform:translate(var(--sx,0),var(--sy,1.5px))}}
 /* ---- witch + moon ---- */
 .hw-moon{right:9%;top:12%;width:110px;height:110px;border-radius:50%;background:radial-gradient(circle at 40% 40%,rgba(196,160,255,.16),rgba(150,100,230,.08) 55%,rgba(120,60,200,0) 72%)}
 .hw-witch{left:0;top:0;opacity:0;animation:hw-witch 30s linear infinite;animation-delay:4s}
@@ -113,4 +115,4 @@
 @keyframes hw-tail{0%,100%{transform:rotate(0)}30%{transform:rotate(-14deg)}60%{transform:rotate(8deg)}}
 @keyframes hw-blink{0%,93%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
 .hw-fleeing .hw-legs{animation-duration:.09s!important}
-@media (prefers-reduced-motion: reduce){.hw-witch,.hw-sparks{display:none}.hw-lights,.hw-bulb,.hw-cat-tail,.hw-cat-eyes{animation:none!important}.hw-cat-head{transition:none}}
+@media (prefers-reduced-motion: reduce){.hw-witch,.hw-sparks{display:none}.hw-ledge,.hw-bulb,.hw-cat-tail,.hw-cat-eyes{animation:none!important}.hw-cat-head{transition:none}}
