@@ -21,6 +21,11 @@ Puts a Halloween overlay on any website: glossy orange and toxic-green slime dri
 - **Crawling spider:** one spider walks along the top-right cobweb, pausing and changing direction.
 - Everything is driven by transforms only. Under reduced-motion the spiders stay static.
 
+## Overlay layer, progress bars, fog
+- **Overlay layer:** card decorations (slime, pumpkins, ghosts, tombstones, bats) and progress-bar slime are drawn in a fixed top-level layer, not inside the cards, so a card's `overflow:hidden` can never clip them. Each one is positioned from its card's `getBoundingClientRect()`. Positions are refreshed on scroll (capture phase, so scroll containers count too), on resize, by a `ResizeObserver`, and by a 500ms safety re-sync. Each decoration is clipped to its card's nearest scrolling/clipping ancestor. Hidden elements (`checkVisibility`) such as closed menus are skipped.
+- **Progress bars:** the slime covers only the *filled* part of the bar. The fill is measured from the coloured descendant's rendered box (which includes `transform: scaleX`). If there isn't one, it falls back to `aria-valuenow`/`max` or `<progress>.value`. A fill of 0% gets no slime. Fills nested inside a track are never treated as tracks themselves. The goo stays close to the bar's real height (6–11px) and updates when the fill changes.
+- **Fog:** the fog layers are `100% + 1600px` wide and use a seamless, stitched `feTurbulence` tile that loops by exactly two tile widths, so no edge is ever exposed. They are feathered with vertical mask gradients and have no blur filter or clip. Checked at 1280, 1728 and 2560px wide, at the start, middle and end of the animation.
+
 ## Gloom layer
 A full-viewport layer that ignores clicks: an edge vignette with an occasional subtle flicker, a light desaturating purple/green grade (`backdrop-filter: saturate(.88)`), two layers of slowly drifting `feTurbulence` fog near the bottom, and faint film grain. All of it is animated with transform/opacity only and stops under reduced-motion.
 
@@ -41,6 +46,7 @@ A full-viewport layer that ignores clicks: an edge vignette with an occasional s
 ## Known limitations
 - The gloom grade sits above the page, so it also tones the slime a little. The grade is kept light so the slime stays vivid. `backdrop-filter` has some GPU cost on very large screens.
 - The card detection is a heuristic. Sites built on flat or borderless designs (Hacker News, much of GitHub's logged-out homepage) get only the page-level layer (top band, webs, spiders, ghosts), not per-card slime.
-- Statically positioned cards are switched to `position: relative` so the decorations can anchor to them. Cards with `overflow:hidden` clip any slime that hangs past their edges.
+- An overlaid decoration can briefly lag (one frame) behind a card while it animates or moves. Clipping only goes as far as the nearest scroll container, so a sticky header inside that container can end up with decorations drawn over it.
+- Statically positioned dashed empty-state cards are switched to `position: relative` so the decorations can anchor to them. Cards with `overflow:hidden` clip any slime that hangs past their edges.
 - Turning the overlay off reloads the tab so the page goes back to exactly how it was.
 - Iframes and closed shadow DOM are not decorated. Chrome blocks content scripts on `chrome://` pages and the Web Store.

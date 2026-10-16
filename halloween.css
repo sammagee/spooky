@@ -65,11 +65,10 @@
 /* ---- gloom shader ---- */
 .hw-grade{inset:0;background:linear-gradient(160deg,rgba(70,40,110,.07),rgba(20,60,40,.05));backdrop-filter:saturate(.88)}
 .hw-vignette{inset:0;background:radial-gradient(ellipse 75% 70% at 50% 45%,transparent 55%,rgba(5,0,12,.55) 100%);animation:hw-dim 11s steps(1) infinite}
-.hw-fog{left:-50%;width:200%;height:45%;bottom:-8%;background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='300'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.004 .009' numOctaves='4' seed='4'/><feColorMatrix values='0 0 0 0 .75 0 0 0 0 .78 0 0 0 0 .9 0 0 0 1.4 -.55'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>") repeat-x;background-size:600px 100%;opacity:.16;
-  -webkit-mask-image:linear-gradient(transparent,#000 60%);mask-image:linear-gradient(transparent,#000 70%);filter:blur(6px);animation:hw-fog 70s linear infinite}
-.hw-fog2{bottom:-14%;height:35%;opacity:.12;animation-duration:110s;animation-direction:reverse;background-size:800px 100%}
+.hw-fog{left:0;width:calc(100% + 1600px);background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='320'><filter id='n' x='0' y='0' width='100%' height='100%'><feTurbulence type='fractalNoise' baseFrequency='.005 .0125' numOctaves='3' seed='4' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .75 0 0 0 0 .77 0 0 0 0 .86 0 0 0 1.5 -.55'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");height:42%;bottom:0;background-repeat:repeat-x;background-position:0 100%;background-size:800px 100%;opacity:.15;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 55%,#000 88%,rgba(0,0,0,.6) 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 55%,#000 88%,rgba(0,0,0,.6) 100%);will-change:transform;animation:hw-fog 60s linear infinite}
+.hw-fog2{height:32%;opacity:.11;animation-duration:95s;animation-direction:reverse}
 .hw-grain{inset:-80px;background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .6 0'/></filter><rect width='100%' height='100%' filter='url(%23g)'/></svg>");opacity:.05;animation:hw-grain .8s steps(4) infinite}
-@keyframes hw-fog{from{transform:translateX(0)}to{transform:translateX(25%)}}
+@keyframes hw-fog{from{transform:translateX(0)}to{transform:translateX(-1600px)}}
 @keyframes hw-grain{0%{transform:translate(0,0)}25%{transform:translate(-30px,20px)}50%{transform:translate(20px,-40px)}75%{transform:translate(-50px,-10px)}}
 @keyframes hw-dim{0%,100%{opacity:1}93%{opacity:.8}94%{opacity:1}96%{opacity:.85}}
 
@@ -83,3 +82,6 @@
 .hw-card-bat{position:absolute;right:4px;top:-12px}
 .hw-mini-ghost{right:44px!important;top:-20px!important}
 .hw-mini-ghost.hw-in-banner,.hw-pumpkin.hw-in-banner{right:104px!important;top:50%!important;margin-top:-14px}
+.hw-cardlayer{position:absolute;inset:0}
+.hw-card-deco.hw-ov,.hw-bar-slime.hw-ov{position:absolute!important;left:0;top:0;right:auto;bottom:auto;inset:auto;z-index:auto}
+.hw-ov .hw-card-slime{right:-1px}

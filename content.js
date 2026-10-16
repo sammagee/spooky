@@ -8,7 +8,7 @@
     green:  { hi: '#c9ff8a', mid: '#6be03a', lo: '#2f9a12', glow: '#6be03a' },
     purple: { hi: '#d9b8ff', mid: '#9b5cf0', lo: '#5a2ca8', glow: '#9b5cf0' }
   };
-  let uid = 0, cardSeq = 0, enabled = false, observer = null, timer = null, root = null;
+  let uid = 0, cardSeq = 0, cardLayer = null, syncTimer = 0, enabled = false, observer = null, timer = null, root = null;
   const decorated = new WeakSet(), barsDone = new WeakSet();
   const added = []; // nodes we inserted into page elements
   const touched = []; // [el, prevStyleText]
@@ -271,6 +271,7 @@
     });
     bg.appendChild(el('div', 'hw-bat hw-flyer', batSVG(46, .7), 'top:22%'));
     root.appendChild(bg);
+    cardLayer = el('div', 'hw-cardlayer'); root.appendChild(cardLayer);
     // top band
     const w = innerWidth, band = el('div', 'hw-topband');
     const split = Math.round(w * .52), gapPx = 6; // orange left → ~middle, green right, clean separation
@@ -308,6 +309,46 @@
     if (cs.position === 'static') { touched.push([e, e.style.cssText]); e.style.position = 'relative'; }
   }
 
+  /* ---------- overlay layer: decorations live outside cards so overflow:hidden never clips them ---------- */
+  const tracked = []; // {target, node, kind:'card'|'bar', clipEl, h}
+  let syncQueued = false;
+  function scrollClipOf(e) { // nearest ancestor that clips (scroll container / overflow hidden)
+    for (let p = e.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
+      const o = getComputedStyle(p); if (/(auto|scroll|hidden|clip)/.test(o.overflowY + o.overflowX)) return p;
+    }
+    return null;
+  }
+  // hidden menus/popovers (opacity 0, visibility hidden, display none) must not show decorations
+  const shown = e => (e.checkVisibility ? e.checkVisibility({ opacityProperty: true, visibilityProperty: true }) : e.offsetParent !== null);
+  function syncOverlay() {
+    syncQueued = false; if (!enabled) return;
+    for (let k = tracked.length - 1; k >= 0; k--) {
+      const t = tracked[k];
+      if (!t.target.isConnected) { t.node.remove(); tracked.splice(k, 1); continue; }
+      const r = t.target.getBoundingClientRect();
+      const vis = r.width > 0 && r.height > 0 && r.bottom > -60 && r.top < innerHeight + 60 && shown(t.target);
+      t.node.style.display = vis ? '' : 'none'; if (!vis) continue;
+      if (t.kind === 'bar') { // re-measure fill each sync so changing progress updates the slime
+        const f = measureFill(t.target, r);
+        if (Math.abs(f.w - t.fw) > 2) { t.fw = f.w; renderBar(t); }
+        t.node.style.transform = `translate(${f.x.toFixed(1)}px,${(r.top + (r.height - t.h) / 2).toFixed(1)}px)`;
+      } else t.node.style.transform = `translate(${r.left.toFixed(1)}px,${r.top.toFixed(1)}px)`;
+      t.node.style.width = r.width + 'px'; t.node.style.height = r.height + 'px';
+      if (t.clipEl) { // clip to the scroll container, with headroom for overhanging toppers
+        const c = t.clipEl.getBoundingClientRect(), top = c.top - r.top + (c.top > 1 ? 0 : -60);
+        t.node.style.clipPath = `inset(${Math.max(-60, top).toFixed(0)}px ${Math.max(-40, r.right - c.right).toFixed(0)}px ${Math.max(-60, r.bottom - c.bottom).toFixed(0)}px ${Math.max(-40, c.left - r.left).toFixed(0)}px)`;
+      }
+    }
+  }
+  const queueSync = () => { if (!syncQueued) { syncQueued = true; requestAnimationFrame(syncOverlay); } };
+  let ro = null;
+  function track(target, node, kind, extra = {}) {
+    const t = { target, node, kind, clipEl: scrollClipOf(target), ...extra };
+    cardLayer.appendChild(node); tracked.push(t);
+    ro = ro || new ResizeObserver(queueSync); ro.observe(target);
+    return t;
+  }
+
   function decorateCards() {
     let count = document.querySelectorAll('.hw-card-deco').length;
     const all = document.body.querySelectorAll('div,section,article,aside,main,form,header,fieldset');
@@ -318,8 +359,7 @@
       const r = e.getBoundingClientRect();
       if (r.width < 160 || r.height < 28) continue;
       const cs = getComputedStyle(e);
-      if (!isCard(e, cs, r)) continue;
-      // skip if an ancestor is already a decorated card (avoid nested slime soup)
+      if (!isCard(e, cs, r) || !shown(e)) continue;
       let p = e.parentElement, nested = false;
       while (p && p !== document.body) { if (decorated.has(p)) { nested = true; break; } p = p.parentElement; }
       if (nested) continue;
@@ -328,21 +368,20 @@
     }
     cards.forEach(([e, cs, r]) => {
       const i = count++;
-      ensurePositioned(e, cs);
       touched.push([e, e.style.cssText]);
-      if (isDashed(cs)) { // empty-state card → haunted house + graveyard
+      if (isDashed(cs)) { // empty-state card → graveyard silhouette stays INSIDE, behind content
+        ensurePositioned(e, cs);
         const h = el('div', 'hw-card-deco hw-haunt', hauntedSVG(r.width - 2, Math.min(r.height * .55, (r.width - 2) * .2)));
         e.style.setProperty('isolation', 'isolate'); e.insertBefore(h, e.firstChild); added.push(h); e.classList.add('hw-carded'); return;
       }
-      const deco = el('div', 'hw-card-deco');
+      const deco = el('div', 'hw-card-deco hw-ov');
       const pumpkin = (sz, extra = '') => el('div', 'hw-pumpkin' + extra, `<div class="hw-pk-halo"></div>${pumpkinSVG(sz)}`, `--d:${(2.6 + ((i * 0.37) % 1.4)).toFixed(2)}s;--dl:${(-(i * 1.13) % 3).toFixed(2)}s`);
-      if (r.height < 72 && r.width > 500) { // banner/alert: orange border, a pumpkin or ghost by the right edge, no slime
+      if (r.height < 72 && r.width > 500) { // banner/alert
         e.style.setProperty('border-color', COLORS.orange.mid, 'important');
         deco.appendChild(i % 2 ? el('div', 'hw-mini-ghost hw-in-banner', miniGhostSVG(26)) : pumpkin(28, ' hw-in-banner'));
-        e.classList.add('hw-carded'); e.dataset.hwSlime = 'orange'; e.appendChild(deco); added.push(deco); return;
+        e.classList.add('hw-carded'); e.dataset.hwSlime = 'orange'; track(e, deco, 'card'); return;
       }
       const ci = cardSeq++;
-      // [border, slime, topper] in the reference's order
       const [border, slime, topper] = [['orange', 'orange', 'pumpkin'], ['purple', null, 'ghost+pumpkin'], ['green', 'green', 'none'],
         ['orange', 'orange', 'pumpkin'], ['purple', 'green', 'tomb'], ['green', 'green', 'pumpkin'], ['orange', 'orange', 'bat']][ci % 7];
       e.style.setProperty('border-color', COLORS[border].mid, 'important');
@@ -356,51 +395,64 @@
       if (topper === 'tomb') deco.appendChild(el('div', 'hw-card-tomb', tombSVG(22, .95)));
       if (topper === 'bat') deco.appendChild(el('div', 'hw-card-bat', batSVG(30, .85)));
       if (ci % 3 === 2) deco.appendChild(el('div', 'hw-card-web', webSVG(60, 'scaleX(-1)')));
-      e.appendChild(deco); added.push(deco);
+      track(e, deco, 'card');
     });
   }
 
-  function barFill(b) {
-    // Return [fillElement|null, fraction]
-    if (b.tagName === 'PROGRESS') return [null, b.max ? b.value / b.max : 0];
-    const now = parseFloat(b.getAttribute('aria-valuenow'));
-    const max = parseFloat(b.getAttribute('aria-valuemax') || 100), min = parseFloat(b.getAttribute('aria-valuemin') || 0);
-    const kid = b.firstElementChild;
-    const br = b.getBoundingClientRect();
-    if (kid) { const kr = kid.getBoundingClientRect(); if (kr.height > 0 && kr.width <= br.width + 1) return [kid, kr.width / br.width]; }
-    if (!isNaN(now)) return [null, (now - min) / (max - min || 1)];
-    return [null, 0];
+  const opaque = c => c && c !== 'transparent' && !/rgba\([^)]*,\s*0\)$/.test(c);
+  /* Measure the FILLED part of a progress track. Returns {x, w} in viewport px. */
+  function measureFill(b, br = b.getBoundingClientRect()) {
+    if (b.tagName === 'PROGRESS') return { x: br.left, w: br.width * (b.max ? Math.min(1, b.value / b.max) : 0) };
+    const aria = b.getAttribute('aria-valuenow'), trackBg = getComputedStyle(b).backgroundColor;
+    // find the coloured fill: a descendant with its own background whose rendered box (incl. transform scaleX) is inside the track
+    let best = null;
+    for (const d of b.querySelectorAll('*')) {
+      if (d.closest('.hw-root')) continue;
+      const dr = d.getBoundingClientRect(); if (dr.height < br.height * .4 || dr.height > br.height + 2) continue;
+      const ds = getComputedStyle(d);
+      if (!(opaque(ds.backgroundColor) && ds.backgroundColor !== trackBg) && ds.backgroundImage === 'none') continue;
+      const w = Math.max(0, Math.min(br.right, dr.right) - Math.max(br.left, dr.left));
+      if (!best || w > best.w) best = { x: Math.max(br.left, dr.left), w };
+    }
+    if (best) return best;
+    if (aria != null && aria !== '') {
+      const min = parseFloat(b.getAttribute('aria-valuemin') || 0), max = parseFloat(b.getAttribute('aria-valuemax') || 100);
+      return { x: br.left, w: br.width * Math.min(1, Math.max(0, (parseFloat(aria) - min) / (max - min || 1))) };
+    }
+    return { x: br.left, w: 0 };
+  }
+  function renderBar(t) {
+    t.node.innerHTML = t.fw >= 8 ? slimeSVG(t.fw, t.color, t.seed, 'bar', { h: t.h, maxLen: 12 }) : '';
   }
   function decorateBars() {
-    let count = document.querySelectorAll('.hw-bar-slime').length;
+    let count = tracked.filter(t => t.kind === 'bar').length;
     const cands = new Set(document.querySelectorAll('progress,[role=progressbar]'));
     document.querySelectorAll('.hw-carded div, .hw-carded span').forEach(e => {
       if (cands.size > 200) return;
       const r = e.getBoundingClientRect();
-      if (r.height >= 3 && r.height <= 14 && r.width >= 80 && e.firstElementChild && e.children.length <= 2) {
+      if (r.height >= 3 && r.height <= 14 && r.width >= 80 && e.firstElementChild && e.children.length <= 3) {
         const cs = getComputedStyle(e);
-        if (parseFloat(cs.borderTopLeftRadius) >= 1 && cs.backgroundColor !== 'rgba(0, 0, 0, 0)') cands.add(e);
+        if (parseFloat(cs.borderTopLeftRadius) >= 1 && opaque(cs.backgroundColor)) cands.add(e);
       }
     });
-    for (const b of cands) {
+    // keep only outermost tracks: drop any candidate that sits inside another candidate (that's a fill, not a track)
+    const list = [...cands].filter(c => ![...cands].some(o => o !== c && o.contains(c)));
+    for (const b of list) {
       if (count >= MAX_BARS) break;
       if (barsDone.has(b) || b.closest('.hw-root')) continue;
       const r = b.getBoundingClientRect();
-      if (r.width < 60 || r.height > 40) continue;
-      barsDone.add(b); count++;
-      const [, frac] = barFill(b);
+      if (r.width < 60 || r.height > 24) continue;
       const card = b.closest('.hw-carded');
-      let kind = 'orange';
-      if (card) { kind = card.dataset.hwSlime || 'orange'; if (kind === 'none') continue; }
-      if (kind === 'purple') kind = count % 2 ? 'green' : 'orange';
-      const fw = Math.max(0, Math.round(r.width * Math.min(1, frac)));
-      if (fw < 8) continue;
-      const host = b.tagName === 'PROGRESS' ? b.parentElement : b;
-      const hcs = getComputedStyle(host); ensurePositioned(host, hcs);
-      const o = el('div', 'hw-bar-slime hw-glow', slimeSVG(fw, kind, count + 101, 'bar', { h: Math.max(8, r.height + 3), maxLen: 13 }));
-      if (host !== b) { o.style.left = b.offsetLeft + 'px'; o.style.top = (b.offsetTop - 3) + 'px'; } else { o.style.left = '0'; o.style.top = '-3px'; }
-      host.appendChild(o); added.push(o);
+      let color = 'orange';
+      if (card) { color = card.dataset.hwSlime || 'orange'; if (color === 'none') { barsDone.add(b); continue; } }
+      barsDone.add(b); count++;
+      const h = Math.min(11, Math.max(6, r.height + 2)); // goo thickness stays near the real bar height
+      const node = el('div', 'hw-bar-slime hw-glow hw-ov');
+      const t = track(b, node, 'bar', { color, seed: count + 101, h, fw: -99 });
+      const f = measureFill(b, r); t.fw = f.w; renderBar(t);
+      new MutationObserver(queueSync).observe(b, { attributes: true, subtree: true, attributeFilter: ['style', 'class', 'aria-valuenow', 'value'] });
     }
+    queueSync();
   }
 
   function run() {
@@ -417,12 +469,15 @@
     buildRoot(); run();
     observer = new MutationObserver(muts => { if (muts.some(m => [...m.addedNodes].some(n => n.nodeType === 1 && !(n.className + '').includes('hw-')))) schedule(); });
     observer.observe(document.body, { childList: true, subtree: true });
-    let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (!enabled) return; root.remove(); buildRoot(); }, 400); });
+    document.addEventListener('scroll', queueSync, { capture: true, passive: true });
+    addEventListener('resize', queueSync);
+    let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (!enabled) return; root.remove(); buildRoot(); tracked.forEach(t => cardLayer.appendChild(t.node)); queueSync(); }, 400); });
+    syncTimer = setInterval(queueSync, 500); // catches layout shifts that move cards without resizing them
   }
   function disable() {
     if (!enabled) return; enabled = false;
     observer && observer.disconnect(); observer = null;
-    root && root.remove(); stopSpiders();
+    root && root.remove(); stopSpiders(); clearInterval(syncTimer); tracked.splice(0);
     added.splice(0).forEach(n => n.remove());
     touched.reverse().splice(0).forEach(([e, s]) => { e.style.cssText = s; });
     document.querySelectorAll('.hw-carded').forEach(e => e.classList.remove('hw-carded'));
