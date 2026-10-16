@@ -29,8 +29,8 @@
   // then shaded (dark lower rim, specular highlight, colored glow).
   const SLIME = {
     // calibrated against reference pixels (orange mid ~#e96c1a, rim ~#9e4817; green mid ~#6cc338)
-    orange: { hi: '#f08a2a', mid: '#e8650a', lo: '#b84a08', rim: '#6e2a06' },
-    green:  { hi: '#7fdc3a', mid: '#5cc41f', lo: '#3c8f16', rim: '#3d5a12' },
+    orange: { hi: '#dd7424', mid: '#d0601a', lo: '#a24812', rim: '#8a3d12' },
+    green:  { hi: '#5fbf30', mid: '#4fa82a', lo: '#3a7d1e', rim: '#2f5e18' },
     purple: { hi: '#d9b8ff', mid: '#9b5cf0', lo: '#5a2ca8', rim: '#3a1a70', glow: '#9b5cf0' }
   };
   function dripSVG(w, color, seed, { band = 10, maxLen = 40, density = 1, fall = true, side = 0, wave = 0.35, taper = 0, fat = 1 } = {}) {
@@ -79,7 +79,7 @@
         <stop offset=".52" stop-color="#8fbf1f"/><stop offset=".56" stop-color="#d2861a"/><stop offset=".6" stop-color="#a9a21c"/><stop offset=".66" stop-color="#62c41f"/>
         <stop offset=".76" stop-color="#55b81c"/><stop offset=".88" stop-color="#6fd030"/><stop offset="1" stop-color="#5cc41f"/></linearGradient>
       <linearGradient id="sh${id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${band * 1.1}">
-        <stop offset="0" stop-color="#fff" stop-opacity=".18"/><stop offset=".35" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#2a0d00" stop-opacity=".35"/></linearGradient>
+        <stop offset="0" stop-color="#fff" stop-opacity=".1"/><stop offset=".35" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#2a0d00" stop-opacity=".35"/></linearGradient>
       <filter id="f${id}" x="-5%" y="-30%" width="110%" height="160%" color-interpolation-filters="sRGB">
         <feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="b"/>
         <feColorMatrix in="b" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 22 -9" result="goo"/>
@@ -89,18 +89,18 @@
         <feGaussianBlur in="rimA" stdDeviation=".8" result="rimB"/>
         <feFlood flood-color="${mix ? '#5a3a0a' : c.rim}" flood-opacity=".9"/><feComposite in2="rimB" operator="in" result="rim"/>
         <feGaussianBlur in="goo" stdDeviation="1.8" result="bump"/>
-        <feSpecularLighting in="bump" surfaceScale="4" specularConstant=".42" specularExponent="55" lighting-color="#fff" result="spec">
+        <feSpecularLighting in="bump" surfaceScale="3" specularConstant=".28" specularExponent="60" lighting-color="#fff" result="spec">
           <feDistantLight azimuth="240" elevation="30"/></feSpecularLighting>
         <feComposite in="spec" in2="goo" operator="in" result="specIn"/>
         <feGaussianBlur in="body" stdDeviation="2.2" result="gl"/>
-        <feColorMatrix in="gl" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 .32 0" result="glow"/>
+        <feColorMatrix in="gl" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 .18 0" result="glow"/>
         <feMerge><feMergeNode in="glow"/><feMergeNode in="body"/><feMergeNode in="rim"/><feMergeNode in="specIn"/></feMerge>
       </filter>
     </defs>
     <g filter="url(#f${id})" fill="url(#g${id})"><g class="hw-goo" style="animation-duration:${dur}s"><path d="${d}" fill="${mix ? `url(#gH${id})` : `url(#g${id})`}"/>${mix ? tongues(w, band, r, id) : ''}<path d="${d}" fill="url(#sh${id})"/>${drips}</g>${drops}</g>
     <g stroke="#fff" fill="none" stroke-linecap="round" pointer-events="none">
-      <path d="M${taper ? w * taper * 0.6 : 2},${(band * 0.3).toFixed(1)} Q${w * 0.55},${band * 0.18} ${w * 0.55},${band * 0.34} T${w - 4},${band * 0.3}" stroke-opacity=".28" stroke-width=".9"/>
-      <g class="hw-goo" style="animation-duration:${dur}s" stroke-opacity=".22" stroke-width=".8">${streaks}</g></g></svg>`;
+      <path d="M${taper ? w * taper * 0.6 : 2},${(band * 0.3).toFixed(1)} Q${w * 0.55},${band * 0.18} ${w * 0.55},${band * 0.34} T${w - 4},${band * 0.3}" stroke-opacity=".18" stroke-width=".8"/>
+      <g class="hw-goo" style="animation-duration:${dur}s" stroke-opacity=".14" stroke-width=".7">${streaks}</g></g></svg>`;
   }
 
   // irregular interleaving blobs of the opposite colour near the orange/green boundary
@@ -263,7 +263,7 @@
     root.appendChild(bg);
     // top band
     const w = innerWidth, band = el('div', 'hw-topband');
-    band.appendChild(el('div', 'hw-seg', dripSVG(w + 2, 'mix', 3, { band: 22, maxLen: 46, density: 0.7, wave: .65, fat: 1.5 }), 'left:-1px'));
+    band.appendChild(el('div', 'hw-seg', dripSVG(w + 2, 'green', 3, { band: 10, maxLen: 42, density: 1.25, wave: .6, fat: .75 }), 'left:-1px'));
     root.appendChild(band);
     // corner webs
     root.appendChild(el('div', 'hw-web', webSVG(170, 'scaleX(-1)'), 'right:0;top:0'));
@@ -329,7 +329,7 @@
       const deco = el('div', 'hw-card-deco');
       if (kind !== 'purple') {
         const sw = Math.round(Math.min(300, Math.max(110, r.width * (0.36 + (i % 3) * 0.06))));
-        deco.appendChild(el('div', 'hw-card-slime', dripSVG(sw, kind, i + 11, { maxLen: Math.min(44, r.height * 0.42), density: 0.75, side: Math.min(22, r.height * 0.22), taper: .3, band: 15, fat: 1.3 })));
+        deco.appendChild(el('div', 'hw-card-slime', dripSVG(sw, kind, i + 11, { maxLen: Math.min(44, r.height * 0.42), density: 0.75, side: Math.min(22, r.height * 0.22), taper: .3, band: 10, fat: .9 })));
       }
       if (i % 3 !== 1) deco.appendChild(el('div', 'hw-pumpkin', `<div class="hw-pk-halo"></div>${pumpkinSVG(i % 2 ? 26 : 30)}`, `--d:${(2.6 + ((i * 0.37) % 1.4)).toFixed(2)}s;--dl:${(-(i * 1.13) % 3).toFixed(2)}s`));
       else if (kind === 'purple') deco.appendChild(el('div', 'hw-mini-ghost', ghostSVG(22, .9)));
@@ -375,7 +375,7 @@
       if (fw < 8) continue;
       const host = b.tagName === 'PROGRESS' ? b.parentElement : b;
       const hcs = getComputedStyle(host); ensurePositioned(host, hcs);
-      const o = el('div', 'hw-bar-slime', dripSVG(fw, kind, count + 101, { band: Math.max(10, r.height + 5), maxLen: 14, density: .55, fat: 1.25, fall: true, wave: .25 }));
+      const o = el('div', 'hw-bar-slime', dripSVG(fw, kind, count + 101, { band: Math.max(7, r.height + 2), maxLen: 11, density: .75, fat: .85, fall: true, wave: .25 }));
       if (host !== b) { o.style.left = b.offsetLeft + 'px'; o.style.top = (b.offsetTop - 3) + 'px'; } else { o.style.left = '0'; o.style.top = '-3px'; }
       host.appendChild(o); added.push(o);
     }

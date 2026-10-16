@@ -7,8 +7,8 @@ Puts a Halloween overlay on any website: glossy orange and toxic-green slime dri
 ## Slime rendering
 Each slime strip is one continuous band, flush with the edge, with dense tapered drips that end in small teardrop tips. A gooey SVG filter (`feGaussianBlur` plus a `feColorMatrix` alpha threshold) fuses the drips into the band. Then `feOffset`/`feComposite` add a darker lower rim, `feSpecularLighting` adds wet gloss, a white specular streak runs along the band and down the drips, and a blurred flood adds a colored glow. On cards the slime starts at the top-right corner, wraps over it and a little way down the right border, and has a pumpkin sitting on it. Progress-bar fills are replaced by a gooey slime bar with short drips.
 
-## Colours and transitions
-The slime colours were matched to pixels sampled from the reference: orange #e8650a–#f08a2a with a burnt-orange rim, green #5cc41f–#7fdc3a with an olive rim. The glow is small, and the specular highlights are small and soft. The top band is a single SVG that blends from orange to green across the middle third. In that zone, irregular blobs of each colour sit inside the band and drips of both colours interleave, so the two slimes appear to ooze into each other instead of meeting at a straight line.
+## Colours
+The colours are calibrated to sit slightly darker than the reference. Green is #4fa82a–#5fbf30 with an olive rim (#2f5e18), and orange is #d0601a–#dd7424 with a rim of #8a3d12. The glow and the specular highlights are kept low but still look glossy. The top band is a thin, green-only strip with many thin tapered drips. Card and progress-bar slime keep the colour assigned to each card.
 
 ## Pumpkins and spiders
 - **Jack-o'-lanterns:** each one has a radial halo layer and a blurred face-glow layer. Their opacity (and the halo's scale) breathes on a 2.6–4s ease-in-out cycle with small irregular flickers. Each pumpkin has its own duration and phase.
