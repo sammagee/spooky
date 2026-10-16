@@ -2,7 +2,7 @@
 
 Puts a Halloween overlay on any website: glossy orange and toxic-green slime dripping from the top of the page and the tops of cards, slimed progress bars, recolored card borders (orange, green, or purple), jack-o'-lanterns on card corners, spiders hanging on threads, corner cobwebs, faint ghosts, bats, and tombstones in the background, a ghost peeking in from the edge, and a haunted-house and graveyard silhouette on dashed empty-state cards. All of the art is original inline SVG.
 
-![screenshot](docs/screenshot.jpg)
+![screenshot](docs/screenshot.png)
 
 ## Slime rendering
 `slimeSVG(width, color, seed, kind)` is a seeded generator. For each strip it builds ONE continuous path made only of smooth cubic Béziers: a wavy band that sags slightly between drips, with drips that flow out through concave shoulders, taper at the neck and end in round bulbs. There is no threshold filter, so the edges stay crisp and anti-aliased.
