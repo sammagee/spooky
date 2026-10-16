@@ -138,7 +138,7 @@
   function addHanging(x, len, seed) {
     const n = el('div', 'hw-spider' + (seed % 2 ? ' hw-green-sp' : ''), `<div class="hw-thread"></div><div class="hw-sp-body">${spiderSVG(seed % 2 === 1)}</div>`, `left:${x}%`);
     root.appendChild(n);
-    const sp = { kind: 'hang', n, thread: n.firstChild, body: n.lastChild, r: rng(seed), len, target: len, min: 25, max: 60 + (x % 30) * 4,
+    const sp = { kind: 'hang', n, thread: n.firstChild, body: n.lastChild, r: rng(seed), len, target: len, home: len, min: 25, max: 60 + (x % 30) * 4,
       ang: 0, av: 0, rot: 0, rotT: 0, next: 0, moving: false };
     spiders.push(sp); applyHang(sp);
   }
@@ -162,9 +162,26 @@
     sp.heading = Math.atan2(y2 - y, x2 - x) * 180 / Math.PI + 90;
     sp.n.style.transform = `translate(${(x - 15).toFixed(1)}px,${(y - 15).toFixed(1)}px) rotate(${sp.heading.toFixed(1)}deg)`;
   }
+  // document-level pointer tracking (passive, rAF-throttled); decorations themselves stay pointer-events:none
+  const ptr = { x: -9999, y: -9999, raw: null, queued: false };
+  function onPointer(e) { ptr.raw = e; if (!ptr.queued) { ptr.queued = true; requestAnimationFrame(() => { ptr.queued = false; ptr.x = ptr.raw.clientX; ptr.y = ptr.raw.clientY; }); } }
   function stepSpiders(now, dt) {
     for (const sp of spiders) {
       const r = sp.r;
+      // flee the cursor
+      if (sp.kind === 'hang' && !sp.fleeing) {
+        const sx = sp.n.offsetLeft, sy = sp.len + 12;
+        if (Math.hypot(ptr.x - sx, ptr.y - sy) < 120) {
+          sp.fleeing = true; sp.moving = true; sp.target = 12; sp.speed = 260 + r() * 80; sp.rotT = 0;
+          sp.n.classList.add('hw-moving', 'hw-fleeing');
+        }
+      } else if (sp.kind === 'crawl' && !sp.scared) {
+        const [cx, cy] = crawlPos(sp.t);
+        if (Math.hypot(ptr.x - cx, ptr.y - cy) < 120) {
+          const [ax] = crawlPos(Math.min(.95, sp.t + .05)); sp.dir = (Math.abs(ax - ptr.x) > Math.abs(cx - ptr.x)) ? 1 : -1;
+          sp.goal = sp.dir > 0 ? .95 : .1; sp.speed = .5; sp.moving = true; sp.scared = true; sp.n.classList.add('hw-moving', 'hw-fleeing');
+        }
+      }
       if (now > sp.next && !sp.moving) { // pick a new action
         if (sp.kind === 'hang') {
           const a = r();
@@ -172,6 +189,7 @@
           else if (a < 0.7) sp.target = Math.max(sp.min, sp.len - 10 - r() * 35);   // climb back up
           else { sp.next = now + 1200 + r() * 3200; sp.rotT = (r() - .5) * 16; continue; } // rest, slight turn
           sp.speed = sp.target > sp.len ? 40 + r() * 50 : 18 + r() * 18;            // px/s; climbing is slower
+          if (sp.creep) { sp.creep = false; sp.target = sp.home; sp.speed = 14 + r() * 8; }
           sp.moving = true;
         } else {
           if (r() < .35) sp.dir *= -1;
@@ -185,7 +203,9 @@
           const d = sp.target - sp.len, st = Math.sign(d) * Math.min(Math.abs(d), sp.speed * dt);
           sp.len += st;
           if (Math.abs(sp.target - sp.len) < .3) { sp.moving = false; sp.av += (st > 0 ? 1 : -1) * (6 + r() * 10); // kick → pendulum
-            sp.next = now + 500 + r() * 2500; sp.n.classList.remove('hw-moving'); }
+            sp.n.classList.remove('hw-moving', 'hw-fleeing');
+            if (sp.fleeing) { sp.fleeing = false; sp.next = now + 3000 + r() * 3000; // hide a while, then creep down slowly
+              sp.creep = true; } else sp.next = now + 500 + r() * 2500; }
         }
         // damped pendulum; longer thread → slower swing
         const k = 9000 / (sp.len + 60) / 60, damp = 1.6;
@@ -195,7 +215,7 @@
       } else if (sp.moving) {
         sp.t += sp.dir * sp.speed * dt;
         if ((sp.dir > 0 && sp.t >= sp.goal) || (sp.dir < 0 && sp.t <= sp.goal)) { sp.t = sp.goal; sp.moving = false;
-          sp.next = now + 700 + r() * 3000; sp.n.classList.remove('hw-moving'); }
+          sp.next = now + 700 + r() * 3000; sp.scared = false; sp.n.classList.remove('hw-moving', 'hw-fleeing'); }
         applyCrawl(sp);
       }
     }
@@ -203,8 +223,21 @@
   function startSpiders() {
     if (reduceMotion || rafId) return;
     let last = performance.now();
-    const loop = now => { const dt = Math.min(.05, (now - last) / 1000); last = now; stepSpiders(now, dt); rafId = requestAnimationFrame(loop); };
+    let lastCat = 0;
+    const loop = now => { const dt = Math.min(.05, (now - last) / 1000); last = now; stepSpiders(now, dt);
+      if (now - lastCat > 120) { lastCat = now; turnCats(); }
+      rafId = requestAnimationFrame(loop); };
     rafId = requestAnimationFrame(loop);
+  }
+  // cats glance toward the cursor
+  function turnCats() {
+    if (ptr.x < -1000) return;
+    document.querySelectorAll('.hw-cat').forEach(c => {
+      const r = c.getBoundingClientRect(); if (!r.width) return;
+      const dx = ptr.x - (r.left + r.width / 2), dy = ptr.y - r.top;
+      const ang = Math.max(-14, Math.min(14, dx / 25)), tilt = Math.max(-4, Math.min(4, dy / 80));
+      const h = c.querySelector('.hw-cat-head'); if (h) h.style.transform = `rotate(${(ang + tilt).toFixed(1)}deg)`;
+    });
   }
   function stopSpiders() { cancelAnimationFrame(rafId); rafId = 0; spiders.length = 0; }
 
@@ -233,6 +266,44 @@
     <path d="M28 12 C40 1 64 3 70 24 C74 38 70 50 78 60 C84 68 92 72 100 74 C88 80 74 78 64 72 C60 79 50 84 41 80 C36 78 33 72 26 74 C17 77 8 72 3 64 C11 64 15 60 17 52 C20 38 16 22 28 12Z" fill="#cfcfd8"/>
     <ellipse cx="38" cy="30" rx="4" ry="6.5" transform="rotate(-18 38 30)" fill="#141218"/><ellipse cx="54" cy="27" rx="4" ry="6.5" transform="rotate(-18 54 27)" fill="#141218"/>
     <ellipse cx="47" cy="45" rx="3.5" ry="5" transform="rotate(-15 47 45)" fill="#141218"/></svg>`;
+  // witch on a broomstick: pointy hat, flowing cape, bristles
+  const witchSVG = () => `<svg xmlns="${NS}" width="120" height="70" viewBox="0 0 120 70">
+    <g fill="#0c0a10">
+      <path d="M8 46 L92 38 L93 41 L9 49Z"/>
+      <path d="M90 36 C98 33 106 34 116 30 C110 37 104 41 92 43Z"/>
+      <path d="M8 44 C2 42 -2 45 -4 48 C1 48 4 50 9 50Z M6 46 C0 49 -3 53 -4 56 M7 47 C2 52 1 56 1 60" stroke="#0c0a10" stroke-width="1.3"/>
+      <path class="hw-cape" d="M44 22 C36 28 30 38 20 42 C14 44 6 40 2 34 C10 34 16 32 22 26 C28 20 34 16 44 16Z"/>
+      <path d="M40 16 C40 8 48 6 52 12 L56 30 C54 38 46 42 40 40 C36 32 38 24 40 16Z"/>
+      <circle cx="50" cy="12" r="5"/>
+      <path d="M40 9 L64 6 L60 9 L46 11Z"/><path d="M47 8 L52 -14 L56 7Z"/>
+      <path d="M52 30 L66 38 L62 40 L50 34Z"/><path d="M48 38 L54 46 L50 47 L45 40Z"/>
+    </g></svg>`;
+  // black cat with glowing eyes; tail and head are separate groups for animation
+  const catSVG = (s = 46) => `<svg xmlns="${NS}" width="${s}" height="${s}" viewBox="0 0 50 50" overflow="visible">
+    <g fill="#060508">
+      <path class="hw-cat-tail" d="M33 44 C42 44 46 38 44 30 C43 25 46 22 48 23 C45 26 47 32 48 36 C49 44 42 49 33 48Z"/>
+      <path d="M14 48 C10 40 12 28 20 24 C27 21 34 26 35 34 C36 41 35 46 33 48Z"/>
+      <g class="hw-cat-head"><path d="M13 22 C11 14 12 9 14 4 L19 10 C22 9 25 9 28 10 L33 4 C35 9 36 14 34 22 C32 28 16 28 13 22Z"/>
+      <g class="hw-cat-eyes"><ellipse cx="19" cy="17" rx="2.6" ry="2.2" fill="#c8f03c"/><ellipse cx="28" cy="17" rx="2.6" ry="2.2" fill="#c8f03c"/>
+      <ellipse cx="19" cy="17" rx=".8" ry="2" fill="#0a0a0a"/><ellipse cx="28" cy="17" rx=".8" ry="2" fill="#0a0a0a"/></g></g>
+    </g></svg>`;
+  // sagging catenary of purple lights
+  function lightsSVG(w) {
+    const span = Math.max(260, w / Math.round(w / 340)), sag = 36, cols = ['#a855f7', '#c084fc', '#d946ef', '#8b5cf6', '#a855f7', '#e879f9'];
+    const a = sag / ((span / 2) ** 2) * 1; let wire = '', bulbs = '', k = 0;
+    const cat = (x0, x) => { const u = x - x0 - span / 2; return 6 + sag - sag * Math.cosh(u / (span / 2) * 1.2) / Math.cosh(1.2) + 0 * a; };
+    for (let x0 = -span / 2; x0 < w; x0 += span) {
+      let d = ''; for (let i = 0; i <= 24; i++) { const x = x0 + span * i / 24; d += (i ? 'L' : 'M') + f1(x) + ',' + f1(cat(x0, x)); }
+      wire += `<path d="${d}"/>`;
+      for (let x = x0 + 18; x < x0 + span - 10; x += 38) {
+        const y = cat(x0, x), c = cols[k % cols.length];
+        bulbs += `<g transform="translate(${f1(x)},${f1(y)})"><rect x="-1.6" y="0" width="3.2" height="3.5" rx=".6" fill="#2a2030"/>
+          <ellipse class="hw-bulb" cx="0" cy="7.5" rx="3.3" ry="4.4" fill="${c}" style="animation-duration:${(2.2 + (k * 0.71) % 2.4).toFixed(2)}s;animation-delay:${(-(k * 1.37) % 3).toFixed(2)}s"/>
+          <ellipse cx="-1" cy="6" rx=".9" ry="1.5" fill="#fff" opacity=".55"/></g>`; k++;
+      }
+    }
+    return `<svg xmlns="${NS}" width="${w}" height="56" viewBox="0 0 ${w} 56"><g stroke="#241c2a" stroke-width="1.2" fill="none">${wire}</g>${bulbs}</svg>`;
+  }
   const batSVG = (s, op) => `<svg xmlns="${NS}" width="${s}" height="${s / 2}" viewBox="0 0 60 30" opacity="${op}">
     <g class="hw-wings"><path d="M30 12 C25 4 15 2 2 6 C8 9 9 13 8 17 C13 14 17 16 18 21 C22 16 26 17 30 20 C34 17 38 16 42 21 C43 16 47 14 52 17 C51 13 52 9 58 6 C45 2 35 4 30 12Z" fill="#0d0a10"/></g>
     <circle cx="30" cy="13" r="3.5" fill="#0d0a10"/></svg>`;
@@ -288,6 +359,14 @@
     [[8, 70], [39, 50], [70, 70], [85, 82]].forEach(([x, len], i) => addHanging(x, len, 101 + i * 37)); // fixed seeds
     addCrawler(977);
     startSpiders();
+    // purple string of lights just under the slime band
+    root.appendChild(el('div', 'hw-lights', lightsSVG(innerWidth + 40)));
+    // faint moon + witch crossing on an arc every ~20-40s (pure CSS keyframes)
+    root.insertBefore(el('div', 'hw-moon'), root.querySelector('.hw-bg').nextSibling);
+    const sparks = Array.from({ length: 7 }, (_, i) => `<i style="left:${-8 - i * 12}px;top:${44 + (i % 3) * 4}px;animation-delay:${(i * .12).toFixed(2)}s"></i>`).join('');
+    root.querySelector('.hw-bg').appendChild(el('div', 'hw-witch', `${witchSVG()}<div class="hw-sparks">${sparks}</div>`));
+    // black cat sitting in the bottom-left corner
+    root.appendChild(el('div', 'hw-cat hw-cat-corner', catSVG(52)));
     // peeking ghost
     root.appendChild(el('div', 'hw-peek', miniGhostSVG(30), 'right:22px;top:118px'));
     document.documentElement.appendChild(root);
@@ -394,6 +473,7 @@
       if (topper.includes('ghost')) deco.appendChild(el('div', 'hw-mini-ghost', miniGhostSVG(24)));
       if (topper === 'tomb') deco.appendChild(el('div', 'hw-card-tomb', tombSVG(22, .95)));
       if (topper === 'bat') deco.appendChild(el('div', 'hw-card-bat', batSVG(30, .85)));
+      if (topper === 'none') deco.appendChild(el('div', 'hw-cat hw-cat-card', catSVG(40)));
       if (ci % 3 === 2) deco.appendChild(el('div', 'hw-card-web', webSVG(60, 'scaleX(-1)')));
       track(e, deco, 'card');
     });
@@ -470,6 +550,7 @@
     observer = new MutationObserver(muts => { if (muts.some(m => [...m.addedNodes].some(n => n.nodeType === 1 && !(n.className + '').includes('hw-')))) schedule(); });
     observer.observe(document.body, { childList: true, subtree: true });
     document.addEventListener('scroll', queueSync, { capture: true, passive: true });
+    if (!reduceMotion) document.addEventListener('pointermove', onPointer, { passive: true });
     addEventListener('resize', queueSync);
     let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (!enabled) return; root.remove(); buildRoot(); tracked.forEach(t => cardLayer.appendChild(t.node)); queueSync(); }, 400); });
     syncTimer = setInterval(queueSync, 500); // catches layout shifts that move cards without resizing them
