@@ -8,7 +8,7 @@
     green:  { hi: '#c9ff8a', mid: '#6be03a', lo: '#2f9a12', glow: '#6be03a' },
     purple: { hi: '#d9b8ff', mid: '#9b5cf0', lo: '#5a2ca8', glow: '#9b5cf0' }
   };
-  let uid = 0, cardSeq = 0, cardLayer = null, syncTimer = 0, enabled = false, observer = null, timer = null, root = null;
+  let uid = 0, cardSeq = 0, cardLayer = null, enabled = false, observer = null, timer = null, root = null;
   const decorated = new WeakSet(), barsDone = new WeakSet();
   const added = []; // nodes we inserted into page elements
   const touched = []; // [el, prevStyleText]
@@ -90,149 +90,228 @@
     const maxD = Math.max(...drips.map(q => q.len), 0), H = h + maxD + side + 8;
     const hl = kind === 'card' ? w * .45 : 3;
     // drops that occasionally detach from the longest drips
-    const drops = drips.filter(q => q.len > maxD * .7).slice(0, 2).map(q =>
-      `<ellipse class="hw-drop" cx="${f1(q.x)}" cy="${f1(thick(q.x) + q.len)}" rx="${f1(q.hw * .8)}" ry="${f1(q.hw * 1)}" fill="${c.mid}" style="animation-duration:${(7 + r() * 6).toFixed(1)}s;animation-delay:${(-r() * 9).toFixed(1)}s"/>`).join('');
+    // each drop is its own tiny svg box so its fall animates on the compositor (no repaint of the slime)
+    const drops = drips.filter(q => q.len > maxD * .7).slice(0, 2).map(q => { const rx = q.hw * .8, ry = q.hw;
+      return `<svg class="hw-drop" xmlns="${NS}" width="${f1(rx * 2)}" height="${f1(ry * 2)}" viewBox="${f1(-rx)} ${f1(-ry)} ${f1(rx * 2)} ${f1(ry * 2)}" style="left:${f1(q.x - rx)}px;top:${f1(thick(q.x) + q.len - ry)}px;animation-duration:${(7 + r() * 6).toFixed(1)}s;animation-delay:${(-r() * 9).toFixed(1)}s"><ellipse rx="${f1(rx)}" ry="${f1(ry)}" fill="${c.mid}"/></svg>`; }).join('');
     const bulbs = drips.filter(q => q.len > 9).map(q => `<ellipse cx="${f1(q.x - q.hw * .35)}" cy="${f1(thick(q.x) + q.len - q.hw * .3)}" rx="${f1(q.hw * .3)}" ry="${f1(q.hw * .5)}" fill="#fff" opacity=".35"/>`).join('');
-    return `<svg xmlns="${NS}" width="${f1(w)}" height="${f1(H)}" viewBox="0 0 ${f1(w)} ${f1(H)}" style="overflow:visible;--gc:${c.glow}" shape-rendering="geometricPrecision">
+    // static body (glow filter painted once) + separate unfiltered svg for the animated drops
+    const dropsSVG = drops;
+    return `<div class="hw-goo" style="--gc:${c.glow}"><svg class="hw-slime" xmlns="${NS}" width="${f1(w)}" height="${f1(H)}" viewBox="0 0 ${f1(w)} ${f1(H)}" style="overflow:visible" shape-rendering="geometricPrecision">
       <defs>
         <linearGradient id="g${id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${f1(h + maxD)}">
           <stop offset="0" stop-color="${c.hi}"/><stop offset="${f1(Math.min(.6, h / (h + maxD) * .9))}" stop-color="${c.mid}"/><stop offset="1" stop-color="${c.lo}"/></linearGradient>
         <radialGradient id="in${id}" cx=".5" cy=".2" r=".7"><stop offset="0" stop-color="#fff2c0" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
         <filter id="hb${id}" x="-10%" y="-200%" width="120%" height="500%"><feGaussianBlur stdDeviation="1.3"/></filter>
       </defs>
-      <g class="hw-goo">
+      <g>
         <path d="${d}" fill="url(#g${id})"/>
         <path d="${d}" fill="url(#in${id})"/>
         <path d="M${f1(hl)},${f1(thick(hl) * .35)} ${Array.from({ length: 8 }, (_, i) => { const x = hl + (w - hl - 4) * (i + 1) / 8; return `L${f1(x)},${f1(thick(x) * .35)}`; }).join(' ')}"
           stroke="#fff" stroke-opacity=".22" stroke-width="${f1(Math.max(1.2, h * .28))}" stroke-linecap="round" fill="none" filter="url(#hb${id})"/>
         ${bulbs}
-      </g>${drops}</svg>`;
+      </g></svg>${dropsSVG}</div>`;
   }
   // backwards-compatible wrapper
   const dripSVG = (w, color, seed, o = {}) => slimeSVG(w, color, seed, o.kind || 'card', o);
 
-  const pumpkinSVG = (s = 30) => `<svg xmlns="${NS}" width="${s}" height="${s}" viewBox="0 0 40 40">
+  const pumpkinSVG = (s = 30) => `<svg class="hw-pk-body" xmlns="${NS}" width="${s}" height="${s}" viewBox="0 0 40 40">
     <defs><radialGradient id="pk${++uid}" cx=".4" cy=".35" r=".7"><stop offset="0" stop-color="#ffb347"/><stop offset=".6" stop-color="#f26b0f"/><stop offset="1" stop-color="#9c3c00"/></radialGradient></defs>
     <path d="M19 9 C19 5 21 3 24 2 L25 4 C22 5 21 7 21 9Z" fill="#4b7a1e"/>
     <g fill="url(#pk${uid})"><ellipse cx="12" cy="24" rx="9" ry="12"/><ellipse cx="28" cy="24" rx="9" ry="12"/><ellipse cx="20" cy="24" rx="9" ry="13"/></g>
     <path d="M20 11 V37 M12 13 Q8 24 12 35 M28 13 Q32 24 28 35" stroke="#a84300" stroke-opacity=".5" fill="none"/>
     <g class="hw-face" fill="#ffe36b"><path d="M11 20 L15 16 L17 21Z"/><path d="M29 20 L25 16 L23 21Z"/><path d="M19 23 L21 23 L20 26Z"/>
     <path d="M10 27 Q20 34 30 27 L27 28 L25 31 L23 29 L20 32 L17 29 L15 31 L13 28Z"/></g>
+    <ellipse cx="14" cy="15" rx="2.5" ry="4" fill="#fff" opacity=".22"/></svg>
+    <svg class="hw-face-glow" xmlns="${NS}" width="${s}" height="${s}" viewBox="0 0 40 40">
     <defs><filter id="pf${uid}" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1.4"/></filter></defs>
-    <g class="hw-face-glow" fill="#fff7c0" filter="url(#pf${uid})"><path d="M11 20 L15 16 L17 21Z"/><path d="M29 20 L25 16 L23 21Z"/>
-    <path d="M10 27 Q20 34 30 27 L27 28 L25 31 L23 29 L20 32 L17 29 L15 31 L13 28Z"/></g>
-    <ellipse cx="14" cy="15" rx="2.5" ry="4" fill="#fff" opacity=".22"/></svg>`;
+    <g fill="#fff7c0" filter="url(#pf${uid})"><path d="M11 20 L15 16 L17 21Z"/><path d="M29 20 L25 16 L23 21Z"/>
+    <path d="M10 27 Q20 34 30 27 L27 28 L25 31 L23 29 L20 32 L17 29 L15 31 L13 28Z"/></g></svg>`;
 
   // small spider with thin, bent legs; green variant glows like the ones under the reference's top band
   const spiderSVG = (green = false) => { const body = green ? '#5fc22e' : '#121212', leg = green ? '#5fc22e' : '#1c1c1c';
-    return `<svg xmlns="${NS}" width="26" height="26" viewBox="0 0 30 30" overflow="visible">
-    <g stroke="${leg}" stroke-width="1.05" fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <g class="hw-legs hw-legs-l"><path d="M13 14 L7 9 L4 13 M13 18 L7 21 L5 27"/></g><g class="hw-legs hw-legs-l2"><path d="M13 16 L6 15 L2 19 M13 15 L8 11.5 L3 9"/></g>
-    <g class="hw-legs hw-legs-r"><path d="M17 14 L23 9 L26 13 M17 18 L23 21 L25 27"/></g><g class="hw-legs hw-legs-r2"><path d="M17 16 L24 15 L28 19 M17 15 L22 11.5 L27 9"/></g></g>
+    const k = 26 / 30, legSvg = (c, ox, oy, d) => `<svg class="hw-legs ${c}" xmlns="${NS}" width="26" height="26" viewBox="0 0 30 30" overflow="visible" style="transform-origin:${f1(ox * k)}px ${f1(oy * k)}px">
+      <path d="${d}" stroke="${leg}" stroke-width="1.05" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    return legSvg('hw-legs-l', 13, 18, 'M13 14 L7 9 L4 13 M13 18 L7 21 L5 27') + legSvg('hw-legs-l2', 13, 14, 'M13 16 L6 15 L2 19 M13 15 L8 11.5 L3 9') +
+      legSvg('hw-legs-r', 17, 18, 'M17 14 L23 9 L26 13 M17 18 L23 21 L25 27') + legSvg('hw-legs-r2', 17, 14, 'M17 16 L24 15 L28 19 M17 15 L22 11.5 L27 9') +
+    `<svg class="hw-sp-core" xmlns="${NS}" width="26" height="26" viewBox="0 0 30 30" overflow="visible">
     <ellipse cx="15" cy="18" rx="3.6" ry="4.4" fill="${body}"/><circle cx="15" cy="12.6" r="2.6" fill="${body}"/>
     <ellipse cx="14" cy="16.5" rx="1" ry="1.6" fill="#fff" opacity="${green ? .35 : .15}"/></svg>`; };
 
-  /* ---------- spider motion: seeded, JS-driven, transform-only ---------- */
+  /* ---------- spider motion: seeded physics, simulated a few seconds ahead and played back as
+     compositor-driven (Web Animations) transform keyframes, so the main thread is idle while they move ---------- */
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const spiders = []; let rafId = 0;
+  const spiders = []; let rafId = 0, frameTimer = 0, wakeTimer = 0, paused = false, lastFrame = 0, lastCat = 0;
+  const SIM_MS = 1000 / 30, HORIZON = 4000; // keyframe spacing (compositor interpolates between them), plan length
   function addHanging(x, len, seed) {
     const n = el('div', 'hw-spider' + (seed % 2 ? ' hw-green-sp' : ''), `<div class="hw-thread"></div><div class="hw-sp-body">${spiderSVG(seed % 2 === 1)}</div>`, `left:${x}%`);
     root.appendChild(n);
-    const sp = { kind: 'hang', n, thread: n.firstChild, body: n.lastChild, r: rng(seed), len, target: len, home: len, min: 25, max: 60 + (x % 30) * 4,
+    const sp = { kind: 'hang', n, els: [n, n.firstChild, n.lastChild], r: rng(seed), len, target: len, home: len, min: 25, max: 60 + (x % 30) * 4,
       ang: 0, av: 0, rot: 0, rotT: 0, next: 0, moving: false };
-    spiders.push(sp); applyHang(sp);
-  }
-  function applyHang(sp) {
-    sp.n.style.transform = `rotate(${sp.ang.toFixed(2)}deg)`;
-    sp.thread.style.transform = `scaleY(${(sp.len / 100).toFixed(3)})`;
-    sp.body.style.transform = `translate(-15px,${sp.len.toFixed(1)}px) rotate(${sp.rot.toFixed(1)}deg)`;
+    spiders.push(sp); applyTf(sp, tfOf(sp));
   }
   function addCrawler(seed) {
     // walks along the top-right cobweb's diagonal strands
     const n = el('div', 'hw-crawler', `<div class="hw-sp-body">${spiderSVG()}</div>`);
     root.appendChild(n);
-    const sp = { kind: 'crawl', n, r: rng(seed), t: .35, dir: 1, speed: 0, next: 0, moving: false, heading: 0 };
-    spiders.push(sp); applyCrawl(sp);
+    const sp = { kind: 'crawl', n, els: [n], r: rng(seed), t: .35, dir: 1, speed: 0, next: 0, moving: false, heading: 0 };
+    spiders.push(sp); applyTf(sp, tfOf(sp));
   }
   function crawlPos(t) { // point on a strand from the corner (right,top) inward, slightly curved
     const L = 150; return [innerWidth - 8 - t * L * 0.78, 6 + t * L * 0.62 + Math.sin(t * 6) * 3];
   }
-  function applyCrawl(sp) {
+  function tfOf(sp) {
+    if (sp.kind === 'hang') return [`rotate(${sp.ang.toFixed(2)}deg)`, `scaleY(${(sp.len / 100).toFixed(3)})`, `translate(-15px,${sp.len.toFixed(1)}px) rotate(${sp.rot.toFixed(1)}deg)`];
     const [x, y] = crawlPos(sp.t); const [x2, y2] = crawlPos(sp.t + .01 * sp.dir);
     sp.heading = Math.atan2(y2 - y, x2 - x) * 180 / Math.PI + 90;
-    sp.n.style.transform = `translate(${(x - 15).toFixed(1)}px,${(y - 15).toFixed(1)}px) rotate(${sp.heading.toFixed(1)}deg)`;
+    return [`translate(${(x - 15).toFixed(1)}px,${(y - 15).toFixed(1)}px) rotate(${sp.heading.toFixed(1)}deg)`];
   }
-  // document-level pointer tracking (passive, rAF-throttled); decorations themselves stay pointer-events:none
-  const ptr = { x: -9999, y: -9999, raw: null, queued: false };
-  function onPointer(e) { ptr.raw = e; if (!ptr.queued) { ptr.queued = true; requestAnimationFrame(() => { ptr.queued = false; ptr.x = ptr.raw.clientX; ptr.y = ptr.raw.clientY; }); } }
-  function stepSpiders(now, dt) {
-    for (const sp of spiders) {
-      const r = sp.r;
-      // flee the cursor
-      if (sp.kind === 'hang' && !sp.fleeing) {
-        const sx = sp.n.offsetLeft, sy = sp.len + 12;
-        if (Math.hypot(ptr.x - sx, ptr.y - sy) < 120) {
-          sp.fleeing = true; sp.moving = true; sp.target = 12; sp.speed = 260 + r() * 80; sp.rotT = 0;
-          sp.n.classList.add('hw-moving', 'hw-fleeing');
-        }
-      } else if (sp.kind === 'crawl' && !sp.scared) {
-        const [cx, cy] = crawlPos(sp.t);
-        if (Math.hypot(ptr.x - cx, ptr.y - cy) < 120) {
-          const [ax] = crawlPos(Math.min(.95, sp.t + .05)); sp.dir = (Math.abs(ax - ptr.x) > Math.abs(cx - ptr.x)) ? 1 : -1;
-          sp.goal = sp.dir > 0 ? .95 : .1; sp.speed = .5; sp.moving = true; sp.scared = true; sp.n.classList.add('hw-moving', 'hw-fleeing');
-        }
-      }
-      if (now > sp.next && !sp.moving) { // pick a new action
-        if (sp.kind === 'hang') {
-          const a = r();
-          if (a < 0.42) sp.target = Math.min(sp.max, sp.len + 8 + r() * 28);        // short drop burst
-          else if (a < 0.7) sp.target = Math.max(sp.min, sp.len - 10 - r() * 35);   // climb back up
-          else { sp.next = now + 1200 + r() * 3200; sp.rotT = (r() - .5) * 16; continue; } // rest, slight turn
-          sp.speed = sp.target > sp.len ? 40 + r() * 50 : 18 + r() * 18;            // px/s; climbing is slower
-          if (sp.creep) { sp.creep = false; sp.target = sp.home; sp.speed = 14 + r() * 8; }
-          sp.moving = true;
-        } else {
-          if (r() < .35) sp.dir *= -1;
-          sp.goal = Math.min(.95, Math.max(.1, sp.t + sp.dir * (.08 + r() * .25)));
-          sp.dir = Math.sign(sp.goal - sp.t) || 1; sp.speed = .05 + r() * .06; sp.moving = true;
-        }
-        sp.n.classList.add('hw-moving');
-      }
+  const applyTf = (sp, tf) => sp.els.forEach((e, j) => { e.style.transform = tf[j]; });
+  const clsOf = sp => sp.moving ? (sp.fleeing || sp.scared ? 'mf' : 'm') : '';
+  const setCls = (sp, c) => { sp.n.classList.toggle('hw-moving', c !== ''); sp.n.classList.toggle('hw-fleeing', c === 'mf'); };
+  const SKIP = new Set(['x', 't0', 'simT', 'wake', 'idle']);
+  const snap = sp => { const o = {}; for (const k in sp) { const v = sp[k]; if (!SKIP.has(k) && (typeof v === 'number' || typeof v === 'boolean')) o[k] = v; } return o; };
+  // document-level pointer tracking (passive); decorations themselves stay pointer-events:none
+  const ptr = { x: -9999, y: -9999, dirty: false };
+  function onPointer(e) { ptr.x = e.clientX; ptr.y = e.clientY; ptr.dirty = true; wantFrame(); }
+  /* One physics step for one spider (pure state; the pointer is handled by checkFlee). */
+  function stepOne(sp, now, dt) {
+    const r = sp.r;
+    if (now > sp.next && !sp.moving) { // pick a new action
       if (sp.kind === 'hang') {
-        if (sp.moving) {
-          const d = sp.target - sp.len, st = Math.sign(d) * Math.min(Math.abs(d), sp.speed * dt);
-          sp.len += st;
-          if (Math.abs(sp.target - sp.len) < .3) { sp.moving = false; sp.av += (st > 0 ? 1 : -1) * (6 + r() * 10); // kick → pendulum
-            sp.n.classList.remove('hw-moving', 'hw-fleeing');
-            if (sp.fleeing) { sp.fleeing = false; sp.next = now + 3000 + r() * 3000; // hide a while, then creep down slowly
-              sp.creep = true; } else sp.next = now + 500 + r() * 2500; }
-        }
-        // damped pendulum; longer thread → slower swing
-        const k = 9000 / (sp.len + 60) / 60, damp = 1.6;
-        sp.av += (-k * sp.ang - damp * sp.av) * dt; sp.ang += sp.av * dt * 4;
-        sp.rot += (sp.rotT - sp.rot) * Math.min(1, dt * 2);
-        applyHang(sp);
-      } else if (sp.moving) {
-        sp.t += sp.dir * sp.speed * dt;
-        if ((sp.dir > 0 && sp.t >= sp.goal) || (sp.dir < 0 && sp.t <= sp.goal)) { sp.t = sp.goal; sp.moving = false;
-          sp.next = now + 700 + r() * 3000; sp.scared = false; sp.n.classList.remove('hw-moving', 'hw-fleeing'); }
-        applyCrawl(sp);
+        const a = r();
+        if (a < 0.42) sp.target = Math.min(sp.max, sp.len + 8 + r() * 28);        // short drop burst
+        else if (a < 0.7) sp.target = Math.max(sp.min, sp.len - 10 - r() * 35);   // climb back up
+        else { sp.next = now + 1200 + r() * 3200; sp.rotT = (r() - .5) * 16; sp.still = false; return; } // rest, slight turn
+        sp.speed = sp.target > sp.len ? 40 + r() * 50 : 18 + r() * 18;            // px/s; climbing is slower
+        if (sp.creep) { sp.creep = false; sp.target = sp.home; sp.speed = 14 + r() * 8; }
+        sp.moving = true;
+      } else {
+        if (r() < .35) sp.dir *= -1;
+        sp.goal = Math.min(.95, Math.max(.1, sp.t + sp.dir * (.08 + r() * .25)));
+        sp.dir = Math.sign(sp.goal - sp.t) || 1; sp.speed = .05 + r() * .06; sp.moving = true;
       }
     }
+    if (sp.kind === 'hang') {
+      if (sp.moving) {
+        const d = sp.target - sp.len, st = Math.sign(d) * Math.min(Math.abs(d), sp.speed * dt);
+        sp.len += st;
+        if (Math.abs(sp.target - sp.len) < .3) { sp.moving = false; sp.av += (st > 0 ? 1 : -1) * (6 + r() * 10); // kick → pendulum
+          if (sp.fleeing) { sp.fleeing = false; sp.next = now + 3000 + r() * 3000; // hide a while, then creep down slowly
+            sp.creep = true; } else sp.next = now + 500 + r() * 2500; }
+      }
+      // damped pendulum; longer thread → slower swing
+      const k = 9000 / (sp.len + 60) / 60, damp = 1.6;
+      sp.av += (-k * sp.ang - damp * sp.av) * dt; sp.ang += sp.av * dt * 4;
+      sp.rot += (sp.rotT - sp.rot) * Math.min(1, dt * 2);
+      const still = !sp.moving && Math.abs(sp.ang) < .02 && Math.abs(sp.av) < .02 && Math.abs(sp.rotT - sp.rot) < .05;
+      if (still && !sp.still) { sp.ang = 0; sp.av = 0; sp.rot = sp.rotT; } // snap the last sub-pixel residue
+      sp.still = still;
+    } else {
+      if (sp.moving) {
+        sp.t += sp.dir * sp.speed * dt;
+        if ((sp.dir > 0 && sp.t >= sp.goal) || (sp.dir < 0 && sp.t <= sp.goal)) { sp.t = sp.goal; sp.moving = false;
+          sp.next = now + 700 + r() * 3000; sp.scared = false; }
+      }
+      sp.still = !sp.moving;
+    }
   }
-  function startSpiders() {
-    if (reduceMotion || rafId) return;
-    let last = performance.now();
-    let lastCat = 0;
-    const loop = now => { const dt = Math.min(.05, (now - last) / 1000); last = now; stepSpiders(now, dt); stepZombie(now, dt);
-      if (now - lastCat > 120) { lastCat = now; turnCats(); }
-      rafId = requestAnimationFrame(loop); };
+  /* Simulate from the spider's current state at time `from` until it comes to rest (or HORIZON), then play it. */
+  function plan(sp, from) {
+    const frames = [{ st: snap(sp), tf: tfOf(sp), cls: clsOf(sp) }];
+    let t = from; sp.idle = false;
+    while (t - from < HORIZON) {
+      t += SIM_MS; stepOne(sp, t, SIM_MS / 1000);
+      frames.push({ st: snap(sp), tf: tfOf(sp), cls: clsOf(sp) });
+      if (!sp.moving && sp.still && sp.next > t) { sp.idle = true; break; } // at rest until its next action
+    }
+    (sp.anims || []).forEach(a => a.cancel()); (sp.timers || []).forEach(clearTimeout); sp.timers = [];
+    const now = performance.now(), dur = (frames.length - 1) * SIM_MS;
+    applyTf(sp, frames[frames.length - 1].tf); // final pose stays as the inline style once the animation ends
+    sp.anims = sp.els.map((e, j) => { const a = e.animate(frames.map(f => ({ transform: f.tf[j] })), { duration: dur, easing: 'linear' }); a.currentTime = Math.min(dur, now - from); return a; });
+    setCls(sp, frames[0].cls);
+    frames.forEach((f, i) => { if (i && f.cls !== frames[i - 1].cls) sp.timers.push(setTimeout(() => setCls(sp, f.cls), from + i * SIM_MS - now)); });
+    sp.frames = frames; sp.t0 = from; sp.simT = t; sp.wake = sp.idle ? sp.next : t;
+  }
+  const frameAt = (sp, now) => sp.frames[Math.max(0, Math.min(sp.frames.length - 1, Math.round((now - sp.t0) / SIM_MS)))].st;
+  // the cursor came close: rewind the spider to what is on screen now, start fleeing, and re-plan from here
+  function checkFlee(now) {
+    for (const sp of spiders) {
+      if (!sp.frames) continue;
+      const cur = frameAt(sp, now);
+      if (sp.kind === 'hang' && !cur.fleeing) {
+        const sx = sp.x ?? (sp.x = sp.n.offsetLeft), sy = cur.len + 12;
+        if (Math.hypot(ptr.x - sx, ptr.y - sy) < 120) {
+          Object.assign(sp, cur); sp.fleeing = true; sp.moving = true; sp.target = 12; sp.speed = 260 + sp.r() * 80; sp.rotT = 0; sp.still = false;
+          plan(sp, now);
+        }
+      } else if (sp.kind === 'crawl' && !cur.scared) {
+        const [cx, cy] = crawlPos(cur.t);
+        if (Math.hypot(ptr.x - cx, ptr.y - cy) < 120) {
+          Object.assign(sp, cur);
+          const [ax] = crawlPos(Math.min(.95, sp.t + .05)); sp.dir = (Math.abs(ax - ptr.x) > Math.abs(cx - ptr.x)) ? 1 : -1;
+          sp.goal = sp.dir > 0 ? .95 : .1; sp.speed = .5; sp.moving = true; sp.scared = true; sp.still = false;
+          plan(sp, now);
+        }
+      }
+    }
+    armTimer();
+  }
+  /* Timer-driven scheduler: re-plans spiders whose plan ran out and wakes the frame loop for the zombie.
+     Nothing runs while paused (tab hidden / window unfocused). */
+  function tick() {
+    wakeTimer = 0; if (!enabled || paused) return;
+    const now = performance.now();
+    for (const sp of spiders) if (!sp.frames || now >= sp.wake - 10)
+      plan(sp, sp.idle || !sp.frames || now - sp.simT > 100 ? now : sp.simT); // continue seamlessly from the last planned pose
+    if (!zombie || (!zombie.active && now >= zombie.next - 10)) wantFrame();
+    armTimer();
+  }
+  function armTimer() {
+    if (!enabled || paused || reduceMotion) return;
+    let wake = Infinity;
+    for (const sp of spiders) wake = Math.min(wake, sp.wake ?? 0);
+    if (zombie && !zombie.active) wake = Math.min(wake, zombie.next);
+    clearTimeout(wakeTimer);
+    if (wake < Infinity) wakeTimer = setTimeout(tick, Math.max(16, wake - performance.now()));
+  }
+  /* rAF loop: only for the zombie walk and pointer reactions (cats, eyes, skeleton, spider flee checks). */
+  function loop(now) {
+    rafId = 0; if (!enabled || paused) return;
+    const dt = lastFrame ? Math.min(.05, (now - lastFrame) / 1000) : 0; lastFrame = now;
+    const walking = stepZombie(now, dt);
+    let busy = walking;
+    if (ptr.dirty) { busy = true; if (now - lastCat > 120) { lastCat = now; ptr.dirty = false; checkFlee(now); turnCats(); } }
+    if (ptr.dirty) rafId = requestAnimationFrame(loop);
+    // the zombie's shuffle is posed at ~30fps: every main-thread frame re-runs style/paint/layerize for the whole
+    // overlay, so not asking for one every vsync halves that cost while it walks
+    else if (walking) { rafId = -1; frameTimer = setTimeout(() => { frameTimer = 0; rafId = requestAnimationFrame(loop); }, Math.max(0, 31 - (performance.now() - now))); }
+    else { lastFrame = 0; armTimer(); }
+  }
+  function wantFrame() {
+    if (reduceMotion || paused || rafId || !enabled) return;
     rafId = requestAnimationFrame(loop);
   }
+  function resumeMotion() { if (reduceMotion) return; tick(); wantFrame(); blinkTick(); }
+  /* Blinks inside SVGs (cat eyes, mummy eyes) are fired by one timer as short one-shot animations, instead of
+     looping animations that are idle 93% of the time but still force a main-thread frame every vsync. */
+  let blinkTimer = 0;
+  function blinkTick() {
+    clearTimeout(blinkTimer); blinkTimer = 0; if (!enabled || paused || reduceMotion) return;
+    const now = performance.now(); let soon = now + 2000; // rescan at least every 2s for decorations added later
+    document.querySelectorAll('.hw-cat-eyes, .hw-mummy .hw-blinker').forEach(e => {
+      const period = e.classList.contains('hw-cat-eyes') ? 5500 : 5000;
+      if (e._hwBlink === undefined) e._hwBlink = now + Math.random() * period;
+      else if (now >= e._hwBlink) { e._hwBlink = now + period; e.classList.remove('hw-blink-now'); e.classList.add('hw-blink-now');
+        e.addEventListener('animationend', () => e.classList.remove('hw-blink-now'), { once: true }); }
+      soon = Math.min(soon, e._hwBlink);
+    });
+    blinkTimer = setTimeout(blinkTick, Math.max(50, soon - now));
+  }
+  function startSpiders() { resumeMotion(); }
   // cats glance toward the cursor; the dangling skeleton chatters when it's close
   function turnCats() {
     if (ptr.x < -1000) return;
-    document.querySelectorAll('.hw-eyes, .hw-mummy').forEach(eg => {
+    root.querySelectorAll('.hw-eyes, .hw-mummy').forEach(eg => {
       const r = eg.getBoundingClientRect(); if (!r.width) return;
       eg.querySelectorAll('.hw-pupil').forEach(p => {
         const pr = p.getBoundingClientRect();
@@ -248,9 +327,9 @@
         p.setAttribute('transform', `translate(${(lx * t).toFixed(2)},${(ly * t).toFixed(2)})`);
       });
     });
-    const sk = document.querySelector('.hw-skel-hang');
+    const sk = root.querySelector('.hw-skel-hang');
     if (sk) { const r = sk.getBoundingClientRect(); sk.classList.toggle('hw-chatter', Math.hypot(ptr.x - (r.left + r.width / 2), ptr.y - (r.top + r.height * .6)) < 130); }
-    document.querySelectorAll('.hw-cat').forEach(c => {
+    root.querySelectorAll('.hw-cat').forEach(c => {
       const r = c.getBoundingClientRect(); if (!r.width) return;
       const dx = ptr.x - (r.left + r.width / 2), dy = ptr.y - r.top;
       const ang = Math.max(-14, Math.min(14, dx / 25)), tilt = Math.max(-4, Math.min(4, dy / 80));
@@ -283,14 +362,14 @@
   // root advance: one stride per cycle, eased so it slows (not stops) during the double-support pause around u≈.42
   const zRoot = ph => { const k = Math.floor(ph), u = ph - k; return (k + u + .55 * Math.sin(TAU * (u + .08)) / TAU) * Z.S; };
   function stepZombie(now, dt) {
-    const n = root && root.querySelector('.hw-zombie'); if (!n) return;
+    const n = zombie ? zombie.n : root && root.querySelector('.hw-zombie'); if (!n) return false;
     if (!zombie) { const q = id => n.querySelector(id);
       zombie = { n, r: rng(4242), active: false, next: now + 6000, lb: q('#zlb'), lf: q('#zlf'), ab: q('#zab'), af: q('#zaf'), t: q('.zt'), h: q('.zh'),
         kb: q('#zlb .zk'), kf: q('#zlf .zk'), eb: q('#zab .ze'), ef: q('#zaf .ze'), gb: q('.zl-b'), gf: q('.zl-f'), gab: q('.za-b'), gaf: q('.za-f') }; }
     const z = zombie, r = z.r, ground = innerHeight - 3;
     dt = Math.min(dt, .05);
     if (!z.active) {
-      if (now < z.next) { n.style.opacity = '0'; return; }
+      if (now < z.next) return false;
       // stumble at most once per crossing, on a random step (~1 in 25 chance it falls inside any given step)
       Object.assign(z, { active: true, ph: 0, x0: -40, stumbleAt: r() < .8 ? 3 + r() * 40 : 1e9, stT: -1 }); n.style.opacity = '1';
     }
@@ -317,6 +396,7 @@
     set(z.af, `rotate(${(-92 + lean * .3 + w * 9 - st * 26).toFixed(2)})`); set(z.ef, `translate(0,13) rotate(${(8 + w * 6).toFixed(2)})`);
     set(z.ab, `rotate(${(-84 + lean * .3 - w * 9 - st * 34).toFixed(2)})`); set(z.eb, `translate(0,13) rotate(${(14 - w * 6).toFixed(2)})`);
     if (hip > innerWidth + 60) { z.active = false; z.next = now + 45000 + r() * 15000; n.style.opacity = '0'; }
+    return true;
   }
   let boltTimer = 0;
   function scheduleLightning(first) {
@@ -324,11 +404,12 @@
     boltTimer = setTimeout(() => {
       if (!enabled || !root) return;
       const f = root.querySelector('.hw-flash');
-      if (f) { f.classList.remove('hw-strike'); void f.offsetWidth; f.classList.add('hw-strike'); }
+      if (f && !paused) { f.classList.remove('hw-strike'); void f.offsetWidth; f.classList.add('hw-strike'); }
       scheduleLightning(false);
     }, first ? 6000 + Math.random() * 6000 : 30000 + Math.random() * 30000);
   }
-  function stopSpiders() { cancelAnimationFrame(rafId); rafId = 0; spiders.length = 0; }
+  function stopSpiders() { cancelAnimationFrame(rafId); clearTimeout(frameTimer); frameTimer = 0; rafId = 0; clearTimeout(wakeTimer); wakeTimer = 0; lastFrame = 0; clearTimeout(blinkTimer); blinkTimer = 0;
+    spiders.forEach(sp => { (sp.anims || []).forEach(a => a.cancel()); (sp.timers || []).forEach(clearTimeout); }); spiders.length = 0; }
 
   function webSVG(s, flip) { // fine radial corner web with sagging concentric threads
     const spokes = 9, rings = 8; let p = '';
@@ -368,49 +449,63 @@
       <path d="M52 30 L66 38 L62 40 L50 34Z"/><path d="M48 38 L54 46 L50 47 L45 40Z"/>
     </g></svg>`;
   // black cat with glowing eyes; tail and head are separate groups for animation
-  const catSVG = (s = 46) => `<svg xmlns="${NS}" width="${s}" height="${s}" viewBox="0 0 50 50" overflow="visible">
+  const catSVG = (s = 46) => `<span class="hw-stack" style="width:${s}px;height:${s}px"><svg class="hw-cat-tail" xmlns="${NS}" width="${s}" height="${s}" viewBox="0 0 50 50" overflow="visible" style="transform-origin:${f1(33 * s / 50)}px ${f1(45.6 * s / 50)}px">
+      <path fill="#060508" d="M33 44 C42 44 46 38 44 30 C43 25 46 22 48 23 C45 26 47 32 48 36 C49 44 42 49 33 48Z"/></svg>
+    <svg xmlns="${NS}" width="${s}" height="${s}" viewBox="0 0 50 50" overflow="visible">
     <g fill="#060508">
-      <path class="hw-cat-tail" d="M33 44 C42 44 46 38 44 30 C43 25 46 22 48 23 C45 26 47 32 48 36 C49 44 42 49 33 48Z"/>
       <path d="M14 48 C10 40 12 28 20 24 C27 21 34 26 35 34 C36 41 35 46 33 48Z"/>
       <g class="hw-cat-head"><path d="M13 22 C11 14 12 9 14 4 L19 10 C22 9 25 9 28 10 L33 4 C35 9 36 14 34 22 C32 28 16 28 13 22Z"/>
       <g class="hw-cat-eyes"><ellipse cx="19" cy="17" rx="2.6" ry="2.2" fill="#c8f03c"/><ellipse cx="28" cy="17" rx="2.6" ry="2.2" fill="#c8f03c"/>
       <ellipse cx="19" cy="17" rx=".8" ry="2" fill="#0a0a0a"/><ellipse cx="28" cy="17" rx=".8" ry="2" fill="#0a0a0a"/></g></g>
-    </g></svg>`;
-  // purple string of lights around the whole viewport border: wire flush to the edges, small sags between clip points
-  function lightsSVG(W, H) {
-    const cols = ['#a855f7', '#c084fc', '#d946ef', '#8b5cf6', '#a855f7', '#e879f9'], SAG = 7, CLIP = 150, GAP = 40;
-    let k = 0, out = '';
+    </g></svg></span>`;
+  // purple string of lights around the whole viewport border: wire flush to the edges, small sags between clip points.
+  // Each edge is its own thin SVG strip (swayed by a composited CSS transform), and the glow is baked in as
+  // radial-gradient halos instead of a viewport-sized drop-shadow filter that had to be recomputed every frame.
+  function lightsHTML(W, H) {
+    const cols = ['#a855f7', '#c084fc', '#d946ef', '#8b5cf6', '#a855f7', '#e879f9'], SAG = 7, CLIP = 150, GAP = 40, gid = ++uid, G = 5;
+    const grads = [...new Set(cols)].map(c => `<radialGradient id="lg${gid}${c.slice(1)}"><stop offset="0" stop-color="${c}" stop-opacity=".75"/><stop offset=".45" stop-color="${c}" stop-opacity=".3"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></radialGradient>`).join('');
+    let k = 0;
     // an edge from (x0,y0) to (x1,y1); (nx,ny) = inward normal
-    const edge = (x0, y0, x1, y1, nx, ny, cls) => {
+    const edge = (x0, y0, x1, y1, nx, ny) => {
       const L = Math.hypot(x1 - x0, y1 - y0), ux = (x1 - x0) / L, uy = (y1 - y0) / L;
       const segs = Math.max(1, Math.round(L / CLIP)), sl = L / segs;
       const at = t => { const local = (t % sl) / sl, sag = SAG * 4 * local * (1 - local); // parabola between clips
         return [x0 + ux * t + nx * (1.5 + sag), y0 + uy * t + ny * (1.5 + sag)]; };
       let d = ''; for (let i = 0, n = Math.ceil(L / 6); i <= n; i++) { const [x, y] = at(Math.min(L, i * L / n)); d += (i ? 'L' : 'M') + f1(x) + ',' + f1(y); }
       const nb = Math.max(1, Math.round(L / GAP)), step = L / nb, rot = Math.atan2(ny, nx) * 180 / Math.PI - 90;
-      let bulbs = '';
+      let sockets = '';
+      const bulbs = Array(G).fill('');
       for (let i = 0; i < nb; i++) {
         const [x, y] = at(step * (i + .5)), c = cols[k % cols.length];
-        bulbs += `<g transform="translate(${f1(x)},${f1(y)}) rotate(${f1(rot)})"><rect x="-1.6" y="0" width="3.2" height="3.5" rx=".6" fill="#2a2030"/>
-          <ellipse class="hw-bulb" cx="0" cy="7.5" rx="3.3" ry="4.4" fill="${c}" style="animation-duration:${(2.2 + (k * 0.71) % 2.4).toFixed(2)}s;animation-delay:${(-(k * 1.37) % 3).toFixed(2)}s"/>
+        const tf = `translate(${f1(x)},${f1(y)}) rotate(${f1(rot)})`;
+        sockets += `<rect transform="${tf}" x="-1.6" y="0" width="3.2" height="3.5" rx=".6" fill="#2a2030"/>`;
+        bulbs[k % G] += `<g transform="${tf}"><ellipse cx="0" cy="7.5" rx="11" ry="12" fill="url(#lg${gid}${c.slice(1)})"/><ellipse cx="0" cy="7.5" rx="3.3" ry="4.4" fill="${c}"/>
           <ellipse cx="-1" cy="6" rx=".9" ry="1.5" fill="#fff" opacity=".55"/></g>`; k++;
       }
-      return `<g class="hw-ledge ${cls}"><path d="${d}" stroke="#241c2a" stroke-width="1.3" fill="none"/>${bulbs}</g>`;
+      return [`<path d="${d}" stroke="#a855f7" stroke-opacity=".14" stroke-width="5" stroke-linejoin="round" fill="none"/><path d="${d}" stroke="#241c2a" stroke-width="1.3" fill="none"/>${sockets}`, bulbs];
     };
-    out += edge(0, 0, W, 0, 0, 1, 'hw-ledge-t') + edge(W, 0, W, H, -1, 0, 'hw-ledge-r') + edge(W, H, 0, H, 0, -1, 'hw-ledge-b') + edge(0, H, 0, 0, 1, 0, 'hw-ledge-l');
-    // corner clips so the wire wraps naturally
+    // corner clips so the wire wraps naturally (drawn in the top/bottom strips)
     const clip = (x, y) => `<circle cx="${x}" cy="${y}" r="2.6" fill="#241c2a"/>`;
-    out += clip(1.5, 1.5) + clip(W - 1.5, 1.5) + clip(W - 1.5, H - 1.5) + clip(1.5, H - 1.5);
-    return `<svg xmlns="${NS}" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${out}</svg>`;
+    const P = 12, T = 34; // strip padding outside the edge, depth into the viewport
+    let e = 0;
+    const strip = (cls, x, y, w, h, [wire, groups], extra = '') => { const svg = (c, st, body) => `<svg class="${c}" style="${st}" xmlns="${NS}" width="${w}" height="${h}" viewBox="${x} ${y} ${w} ${h}" overflow="visible">${body}</svg>`; e++;
+      return `<div class="hw-ledge ${cls}" style="left:${x}px;top:${y}px">${svg('', '', wire + extra)}${groups.map((g, i) =>
+        svg('hw-bulbs', `animation-duration:${(2.2 + ((i + e) * 0.71) % 2.4).toFixed(2)}s;animation-delay:${(-((i * 5 + e) * 1.37) % 3).toFixed(2)}s`, `<defs>${grads}</defs>${g}`)).join('')}</div>`; };
+    return strip('hw-ledge-t', -P, -P, W + 2 * P, T + P, edge(0, 0, W, 0, 0, 1), clip(1.5, 1.5) + clip(W - 1.5, 1.5)) +
+      strip('hw-ledge-r', W - T, -P, T + P, H + 2 * P, edge(W, 0, W, H, -1, 0)) +
+      strip('hw-ledge-b', -P, H - T, W + 2 * P, T + P, edge(W, H, 0, H, 0, -1), clip(W - 1.5, H - 1.5) + clip(1.5, H - 1.5)) +
+      strip('hw-ledge-l', -P, -P, T + P, H + 2 * P, edge(0, H, 0, 0, 1, 0));
   }
   // cartoon skeleton: off-white bones, soft gray shading, dark sockets; arm + jaw are separate groups for animation
-  const skeletonSVG = (s = 60, legs = true) => `<svg xmlns="${NS}" width="${s}" height="${f1(s * (legs ? 1.6 : 1.15))}" viewBox="0 0 60 ${legs ? 96 : 69}" overflow="visible">
+  const skeletonSVG = (s = 60, legs = true, armLayer = false) => { const h = f1(s * (legs ? 1.6 : 1.15)), vb = `0 0 60 ${legs ? 96 : 69}`,
+    arm = `<path d="M39 33 L47 25 L52 15" stroke-width="2.4"/><path d="M52 15 L50 10 M52 15 L53 9.5 M52 15 L55.5 11" stroke-width="1.4"/>`;
+    return (armLayer ? `<span class="hw-stack" style="width:${s}px;height:${h}px">` : '') + `<svg xmlns="${NS}" width="${s}" height="${h}" viewBox="${vb}" overflow="visible">
     <defs><radialGradient id="sk${++uid}" cx=".4" cy=".35" r=".75"><stop offset="0" stop-color="#f6f3ea"/><stop offset=".7" stop-color="#e2ddd0"/><stop offset="1" stop-color="#b9b3a6"/></radialGradient></defs>
     <g stroke="#e9e5da" stroke-linecap="round" fill="none">
       <path d="M30 30 V58" stroke-width="3.2"/>
       <path d="M21 36 Q30 33 39 36 M20 41 Q30 38 40 41 M21 46 Q30 43.5 39 46 M23 51 Q30 49 37 51" stroke-width="2.2"/>
       <path d="M21 33 L14 44 L12 54" stroke-width="2.4"/><circle cx="11.5" cy="56" r="2.2" fill="#e9e5da" stroke="none"/>
-      <g class="hw-skel-arm"><path d="M39 33 L47 25 L52 15" stroke-width="2.4"/><path d="M52 15 L50 10 M52 15 L53 9.5 M52 15 L55.5 11" stroke-width="1.4"/></g>
+      ${armLayer ? '' : `<g class="hw-skel-arm">${arm}</g>`}
       ${legs ? '<path d="M25 64 L23 78 L24 92 M35 64 L37 78 L36 92" stroke-width="2.6"/><path d="M24 92 L19 94 M36 92 L41 94" stroke-width="2.2"/>' : ''}
     </g>
     ${legs ? '<path d="M22 58 C22 55 38 55 38 58 C38 63 34 66 30 64 C26 66 22 63 22 58Z" fill="#e2ddd0"/>' : ''}
@@ -420,7 +515,8 @@
     <path d="M30 17.5 L28.4 21 H31.6Z" fill="#2a2430"/>
     <g class="hw-skel-jaw"><path d="M22 24 H38 C38 28 35 30 30 30 C25 30 22 28 22 24Z" fill="#dcd7c9"/>
       <path d="M25 24 V26.5 M28.3 24 V27 M31.7 24 V27 M35 24 V26.5" stroke="#8d877c" stroke-width=".8"/></g>
-    <ellipse cx="25" cy="6" rx="4" ry="2" fill="#fff" opacity=".45"/></svg>`;
+    <ellipse cx="25" cy="6" rx="4" ry="2" fill="#fff" opacity=".45"/></svg>` + (armLayer ? `<svg class="hw-skel-arm" xmlns="${NS}" width="${s}" height="${h}" viewBox="${vb}" overflow="visible" style="transform-origin:${f1(39 * s / 60)}px ${f1(33 * s / 60)}px">
+    <g stroke="#e9e5da" stroke-linecap="round" fill="none">${arm}</g></svg></span>` : ''); };
   // --- zombie hand bursting from the ground, with dirt
   const zHandSVG = () => `<svg xmlns="${NS}" width="44" height="70" viewBox="0 0 44 70" overflow="visible">
     <path d="M14 70 V40 C12 34 8 30 6 24 C5 21 8 19 10 22 L14 29 L13 12 C13 9 17 9 17 12 L18 26 L19 8 C19 5 23 5 23 8 L23.5 26 L25 11 C25 8 29 8 29 11 L28.5 28 L31 18 C32 15 35.5 16 35 19 L32 38 C31 44 30 50 30 70Z" fill="#6f9a3e"/>
@@ -443,13 +539,14 @@
         <path d="M-1 -5.5 L7 -6.5" stroke="#2a3418" stroke-width="1.4"/></g></g>
     <g class="zl-f">${leg('zlf')}</g><g class="za-f">${arm('zaf')}</g></svg>`; };
   // --- cauldron with bubbling goo
-  const cauldronSVG = () => `<svg xmlns="${NS}" width="78" height="66" viewBox="0 0 78 66" overflow="visible">
-    <ellipse cx="39" cy="22" rx="34" ry="8" fill="#5cc41f"/><ellipse cx="33" cy="20" rx="14" ry="3" fill="#a6ec6a" opacity=".6"/>
-    ${[[24, 4.5, 0], [42, 3.5, .8], [54, 4, 1.6], [33, 3, 2.3]].map(([x, r, d]) => `<circle class="hw-bubble" cx="${x}" cy="20" r="${r}" fill="#7fdc3a" style="animation-delay:${d}s"/>`).join('')}
+  const cauldronSVG = () => `<span class="hw-stack" style="width:78px;height:66px"><svg xmlns="${NS}" width="78" height="66" viewBox="0 0 78 66" overflow="visible">
+    <ellipse cx="39" cy="22" rx="34" ry="8" fill="#5cc41f"/><ellipse cx="33" cy="20" rx="14" ry="3" fill="#a6ec6a" opacity=".6"/></svg>
+    ${[[24, 4.5, 0], [42, 3.5, .8], [54, 4, 1.6], [33, 3, 2.3]].map(([x, r, d]) => `<svg class="hw-bubble" xmlns="${NS}" width="${2 * r}" height="${2 * r}" viewBox="0 0 ${2 * r} ${2 * r}" style="left:${x - r}px;top:${20 - r}px;animation-delay:${d}s"><circle cx="${r}" cy="${r}" r="${r}" fill="#7fdc3a"/></svg>`).join('')}
+    <svg xmlns="${NS}" width="78" height="66" viewBox="0 0 78 66" overflow="visible">
     <path d="M4 22 C4 46 16 60 39 60 C62 60 74 46 74 22 C66 28 12 28 4 22Z" fill="#141216"/>
     <path d="M10 30 C14 46 24 54 34 56" stroke="#3a3540" stroke-width="2" fill="none" opacity=".8"/>
     <path d="M14 58 L10 66 M64 58 L68 66" stroke="#141216" stroke-width="4" stroke-linecap="round"/>
-    <path d="M2 22 C2 18 76 18 76 22 C76 26 2 26 2 22Z" fill="none" stroke="#25222a" stroke-width="3"/></svg>`;
+    <path d="M2 22 C2 18 76 18 76 22 C76 26 2 26 2 22Z" fill="none" stroke="#25222a" stroke-width="3"/></svg></span>`;
   // --- candy
   const candyCornSVG = (s = 16, rot = 0) => `<svg xmlns="${NS}" width="${s}" height="${s}" viewBox="0 0 20 20" style="transform:rotate(${rot}deg)">
     <path d="M10 1 C13 6 17 13 17 16 C17 19 3 19 3 16 C3 13 7 6 10 1Z" fill="#f7f3e6"/><path d="M5.2 10 C8 9.2 12 9.2 14.8 10 C16 12.5 17 14.5 17 16 C17 19 3 19 3 16 C3 14.5 4 12.5 5.2 10Z" fill="#f08a2a"/>
@@ -470,9 +567,9 @@
     <g class="hw-blinker">${[11, 35].map(x => `<ellipse cx="${x}" cy="10" rx="8.5" ry="6.5" fill="${blood ? '#f4efe6' : col}"/>
       ${blood ? `<path d="M${x - 8} 9 L${x - 4} 10 L${x - 2} 8 M${x + 8} 11 L${x + 4} 10 L${x + 5} 12" stroke="#c0392b" stroke-width=".6" fill="none"/>` : ''}
       <g class="hw-pupil" data-rx="${blood ? 4.8 : 6.4}" data-ry="${blood ? 2.8 : 1.4}"><ellipse cx="${x}" cy="10" rx="${blood ? 3.4 : 1.8}" ry="${blood ? 3.4 : 5}" fill="${blood ? '#3b7fd1' : '#120c06'}"/>${blood ? `<circle cx="${x}" cy="10" r="1.7" fill="#0c0c10"/>` : ''}</g>`).join('')}</g></svg>`;
-  const batSVG = (s, op) => `<svg xmlns="${NS}" width="${s}" height="${s / 2}" viewBox="0 0 60 30" opacity="${op}">
-    <g class="hw-wings"><path d="M30 12 C25 4 15 2 2 6 C8 9 9 13 8 17 C13 14 17 16 18 21 C22 16 26 17 30 20 C34 17 38 16 42 21 C43 16 47 14 52 17 C51 13 52 9 58 6 C45 2 35 4 30 12Z" fill="#0d0a10"/></g>
-    <circle cx="30" cy="13" r="3.5" fill="#0d0a10"/></svg>`;
+  const batSVG = (s, op) => `<span class="hw-batbox" style="width:${s}px;height:${s / 2}px;opacity:${op}"><svg class="hw-wings" xmlns="${NS}" width="${s}" height="${s / 2}" viewBox="0 0 60 30">
+    <g><path d="M30 12 C25 4 15 2 2 6 C8 9 9 13 8 17 C13 14 17 16 18 21 C22 16 26 17 30 20 C34 17 38 16 42 21 C43 16 47 14 52 17 C51 13 52 9 58 6 C45 2 35 4 30 12Z" fill="#0d0a10"/></g></svg>
+    <svg xmlns="${NS}" width="${s}" height="${s / 2}" viewBox="0 0 60 30"><circle cx="30" cy="13" r="3.5" fill="#0d0a10"/></svg></span>`;
   const tombSVG = (s, op) => `<svg xmlns="${NS}" width="${s}" height="${s * 1.1}" viewBox="0 0 40 44" opacity="${op}">
     <path d="M6 42 V16 C6 6 13 2 20 2 C27 2 34 6 34 16 V42Z" fill="#8a8a96"/><path d="M14 18 H26 M20 12 V28" stroke="#55555f" stroke-width="2.5"/><rect x="2" y="40" width="36" height="4" rx="2" fill="#3c4a30"/></svg>`;
   // low-contrast graveyard (left) + haunted house (right) silhouette, drawn behind card content
@@ -493,9 +590,8 @@
   }
   function buildRoot() {
     root = el('div', 'hw-root'); root.setAttribute('aria-hidden', 'true');
-    root.appendChild(el('div', 'hw-grade'));
     root.appendChild(el('div', 'hw-fog hw-fog1')); root.appendChild(el('div', 'hw-fog hw-fog2'));
-    root.appendChild(el('div', 'hw-vignette')); root.appendChild(el('div', 'hw-grain'));
+    root.appendChild(el('div', 'hw-vignette'));
     const bg = el('div', 'hw-bg');
     const bgItems = [
       ['ghost', 63, 46, 110, .13], ['ghost', 67, 84, 120, .12], ['ghost', 8, 40, 70, .08],
@@ -527,13 +623,13 @@
     startSpiders();
     // purple string of lights just under the slime band
     // sized to the layout viewport (clientWidth/Height exclude scrollbars, so they stay uncovered)
-    root.appendChild(el('div', 'hw-lights', lightsSVG(document.documentElement.clientWidth, document.documentElement.clientHeight)));
+    root.appendChild(el('div', 'hw-lights', lightsHTML(document.documentElement.clientWidth, document.documentElement.clientHeight)));
     // faint moon + witch crossing on an arc every ~20-40s (pure CSS keyframes)
     root.insertBefore(el('div', 'hw-moon'), root.querySelector('.hw-bg').nextSibling);
     const sparks = Array.from({ length: 7 }, (_, i) => `<i style="left:${-8 - i * 12}px;top:${44 + (i % 3) * 4}px;animation-delay:${(i * .12).toFixed(2)}s"></i>`).join('');
     root.querySelector('.hw-bg').appendChild(el('div', 'hw-witch', `${witchSVG()}<div class="hw-sparks">${sparks}</div>`));
     // skeleton peeking up from the bottom edge (CSS cycle: rises, waves, sinks)
-    root.appendChild(el('div', 'hw-skel hw-skel-peek', skeletonSVG(64, false)));
+    root.appendChild(el('div', 'hw-skel hw-skel-peek', skeletonSVG(64, false, true)));
     // small skeleton dangling from the top border lights; chatters + waves when the cursor comes near
     root.appendChild(el('div', 'hw-skel hw-skel-hang', `<div class="hw-skel-cord"></div>${skeletonSVG(38, true)}`));
     // zombie hand bursting from the bottom edge (CSS cycle) + shuffling zombie (CSS cycle)
@@ -584,32 +680,45 @@
   }
   // hidden menus/popovers (opacity 0, visibility hidden, display none) must not show decorations
   const shown = e => (e.checkVisibility ? e.checkVisibility({ opacityProperty: true, visibilityProperty: true }) : e.offsetParent !== null);
+  let syncFull = false, syncSoonTimer = 0;
   function syncOverlay() {
     syncQueued = false; if (!enabled) return;
+    const full = syncFull; syncFull = false;
     for (let k = tracked.length - 1; k >= 0; k--) {
       const t = tracked[k];
       if (!t.target.isConnected) { t.node.remove(); tracked.splice(k, 1); continue; }
       const r = t.target.getBoundingClientRect();
-      const vis = r.width > 0 && r.height > 0 && r.bottom > -60 && r.top < innerHeight + 60 && shown(t.target);
-      t.node.style.display = vis ? '' : 'none'; if (!vis) continue;
-      if (t.kind === 'bar') { // re-measure fill each sync so changing progress updates the slime
-        const f = measureFill(t.target, r);
-        if (Math.abs(f.w - t.fw) > 2) { t.fw = f.w; renderBar(t); }
-        t.node.style.transform = `translate(${f.x.toFixed(1)}px,${(r.top + (r.height - t.h) / 2).toFixed(1)}px)`;
-      } else t.node.style.transform = `translate(${r.left.toFixed(1)}px,${r.top.toFixed(1)}px)`;
-      t.node.style.width = r.width + 'px'; t.node.style.height = r.height + 'px';
+      if (full || t.shown === undefined) t.shown = shown(t.target);
+      const vis = r.width > 0 && r.height > 0 && r.bottom > -60 && r.top < innerHeight + 60 && t.shown;
+      if (t.vis !== vis) { t.vis = vis; t.node.style.display = vis ? '' : 'none'; }
+      if (!vis) { t.stale = true; continue; }
+      const remeasure = full || t.stale || t.fx === undefined; t.stale = false;
+      let tf;
+      if (t.kind === 'bar') { // re-measure the fill only on full syncs (mutation/resize); scrolling reuses the offset
+        if (remeasure) { const f = measureFill(t.target, r); t.fx = f.x - r.left;
+          if (Math.abs(f.w - t.fw) > 2) { t.fw = f.w; renderBar(t); } }
+        tf = `translate(${(r.left + t.fx).toFixed(1)}px,${(r.top + (r.height - t.h) / 2).toFixed(1)}px)`;
+      } else tf = `translate(${r.left.toFixed(1)}px,${r.top.toFixed(1)}px)`;
+      if (t.tf !== tf) { t.tf = tf; t.node.style.transform = tf; }
+      const wh = r.width + 'x' + r.height;
+      if (t.wh !== wh) { t.wh = wh; t.node.style.width = r.width + 'px'; t.node.style.height = r.height + 'px'; }
       if (t.clipEl) { // clip to the scroll container, with headroom for overhanging toppers
         const c = t.clipEl.getBoundingClientRect(), top = c.top - r.top + (c.top > 1 ? 0 : -60);
-        t.node.style.clipPath = `inset(${Math.max(-60, top).toFixed(0)}px ${Math.max(-40, r.right - c.right).toFixed(0)}px ${Math.max(-60, r.bottom - c.bottom).toFixed(0)}px ${Math.max(-40, c.left - r.left).toFixed(0)}px)`;
+        const cp = `inset(${Math.max(-60, top).toFixed(0)}px ${Math.max(-40, r.right - c.right).toFixed(0)}px ${Math.max(-60, r.bottom - c.bottom).toFixed(0)}px ${Math.max(-40, c.left - r.left).toFixed(0)}px)`;
+        if (t.cp !== cp) { t.cp = cp; t.node.style.clipPath = cp; }
       }
     }
   }
+  // scroll → position-only sync next frame; page changes → full re-measure, debounced
   const queueSync = () => { if (!syncQueued) { syncQueued = true; requestAnimationFrame(syncOverlay); } };
+  const queueFullSync = () => { syncFull = true; queueSync(); };
+  const queueSyncSoon = () => { if (!syncSoonTimer) syncSoonTimer = setTimeout(() => { syncSoonTimer = 0; queueFullSync(); }, 150); };
   let ro = null;
   function track(target, node, kind, extra = {}) {
     const t = { target, node, kind, clipEl: scrollClipOf(target), ...extra };
     cardLayer.appendChild(node); tracked.push(t);
-    ro = ro || new ResizeObserver(queueSync); ro.observe(target);
+    if (!ro) { ro = new ResizeObserver(queueSyncSoon); ro.observe(document.documentElement); } // page height changes shift cards
+    ro.observe(target);
     return t;
   }
 
@@ -717,9 +826,9 @@
       const node = el('div', 'hw-bar-slime hw-glow hw-ov');
       const t = track(b, node, 'bar', { color, seed: count + 101, h, fw: -99 });
       const f = measureFill(b, r); t.fw = f.w; renderBar(t);
-      new MutationObserver(queueSync).observe(b, { attributes: true, subtree: true, attributeFilter: ['style', 'class', 'aria-valuenow', 'value'] });
+      new MutationObserver(queueSyncSoon).observe(b, { attributes: true, subtree: true, attributeFilter: ['style', 'class', 'aria-valuenow', 'value'] });
     }
-    queueSync();
+    queueFullSync();
   }
 
   function run() {
@@ -728,25 +837,37 @@
     try { decorateCards(); decorateBars(); } catch (e) { /* never break the page */ }
     observer && observer.observe(document.body, { childList: true, subtree: true });
   }
-  const schedule = () => { if (timer) return; timer = setTimeout(() => { timer = null; (window.requestIdleCallback || setTimeout)(run); }, 800); };
+  const schedule = () => { if (timer) return; timer = setTimeout(() => { timer = null; if (document.hidden) { schedule(); return; } (window.requestIdleCallback || setTimeout)(run, { timeout: 2000 }); }, 1000); };
+  const ours = n => n.nodeType === 1 && ((n.className + '').includes('hw-') || (n.closest && n.closest('.hw-root,.hw-card-deco')));
+  /* Pause all motion (rAF loop + CSS animations) when the tab is hidden or the window loses focus. */
+  function updatePause() {
+    const ae = document.activeElement, inFrame = ae && (ae.tagName === 'IFRAME' || ae.tagName === 'FRAME');
+    const p = enabled && (document.hidden || (!document.hasFocus() && !inFrame));
+    if (p === paused) return;
+    paused = p; document.documentElement.classList.toggle('hw-paused', p);
+    if (p) { cancelAnimationFrame(rafId); clearTimeout(frameTimer); frameTimer = 0; rafId = 0; clearTimeout(wakeTimer); wakeTimer = 0; lastFrame = 0; clearTimeout(blinkTimer); blinkTimer = 0; }
+    else { resumeMotion(); queueFullSync(); }
+  }
 
   function enable() {
     if (enabled) return; enabled = true;
     document.documentElement.classList.add('hw-on');
     buildRoot(); run();
-    observer = new MutationObserver(muts => { if (muts.some(m => [...m.addedNodes].some(n => n.nodeType === 1 && !(n.className + '').includes('hw-')))) schedule(); });
+    // ignore our own nodes; page changes trigger a debounced re-scan + re-measure
+    observer = new MutationObserver(muts => { if (muts.some(m => !ours(m.target) && ([...m.addedNodes].some(n => n.nodeType === 1 && !ours(n)) || m.removedNodes.length))) { schedule(); queueSyncSoon(); } });
     observer.observe(document.body, { childList: true, subtree: true });
     document.addEventListener('scroll', queueSync, { capture: true, passive: true });
     if (!reduceMotion) document.addEventListener('pointermove', onPointer, { passive: true });
     scheduleLightning(true);
-    addEventListener('resize', queueSync);
+    addEventListener('resize', queueFullSync);
+    document.addEventListener('visibilitychange', updatePause); addEventListener('blur', updatePause); addEventListener('focus', updatePause);
+    updatePause();
     let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (!enabled) return; root.remove(); buildRoot(); tracked.forEach(t => cardLayer.appendChild(t.node)); queueSync(); }, 400); });
-    syncTimer = setInterval(queueSync, 500); // catches layout shifts that move cards without resizing them
   }
   function disable() {
     if (!enabled) return; enabled = false;
     observer && observer.disconnect(); observer = null;
-    root && root.remove(); stopSpiders(); clearInterval(syncTimer); clearTimeout(boltTimer); tracked.splice(0);
+    root && root.remove(); stopSpiders(); clearTimeout(boltTimer); clearTimeout(syncSoonTimer); tracked.splice(0);
     added.splice(0).forEach(n => n.remove());
     touched.reverse().splice(0).forEach(([e, s]) => { e.style.cssText = s; });
     document.querySelectorAll('.hw-carded').forEach(e => e.classList.remove('hw-carded'));
