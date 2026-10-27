@@ -6,31 +6,36 @@
 .hw-seg{position:absolute;top:0}
 .hw-web{opacity:.8}
 .hw-web svg{display:block}
-.hw-spider{top:0;width:0;height:0;transform-origin:0 0}
-.hw-thread{position:absolute;left:0;top:0;width:1px;height:100px;transform-origin:0 0;background:linear-gradient(rgba(220,220,230,.15),rgba(220,220,230,.7))}
-.hw-sp-body{position:absolute;left:0;top:0;width:30px;height:30px;transform-origin:15px 4px;filter:drop-shadow(0 0 3px rgba(255,255,255,.35))}
-.hw-crawler{left:0;top:0;width:30px;height:30px}.hw-crawler .hw-sp-body{transform:scale(.8)}
+.hw-spider{top:0;width:0;height:0;transform-origin:0 0;will-change:transform}
+.hw-thread{position:absolute;left:0;top:0;width:1px;height:100px;transform-origin:0 0;will-change:transform;background:linear-gradient(rgba(220,220,230,.15),rgba(220,220,230,.7))}
+.hw-sp-body{position:absolute;left:0;top:0;width:30px;height:30px;transform-origin:15px 4px;will-change:transform}
+.hw-sp-body svg{filter:drop-shadow(0 0 3px rgba(255,255,255,.35))}
+.hw-crawler{left:0;top:0;width:30px;height:30px;will-change:transform}.hw-crawler .hw-sp-body{transform:scale(.8)}
 .hw-sp-body svg{display:block}
-.hw-legs{transform-box:fill-box}
-.hw-legs-l,.hw-legs-l2{transform-origin:100% 50%}.hw-legs-r,.hw-legs-r2{transform-origin:0 50%}
+.hw-sp-body svg.hw-legs{position:absolute;left:0;top:0}
+
 .hw-moving .hw-legs-l,.hw-moving .hw-legs-r2{animation:hw-leg .22s ease-in-out infinite alternate}
 .hw-moving .hw-legs-r,.hw-moving .hw-legs-l2{animation:hw-leg .22s ease-in-out infinite alternate-reverse}
 @keyframes hw-leg{from{transform:rotate(-9deg)}to{transform:rotate(9deg)}}
-.hw-peek{z-index:2;animation:hw-peek 12s ease-in-out infinite;filter:drop-shadow(0 0 8px rgba(200,220,255,.5))}
+.hw-peek{z-index:2;animation:hw-peek 12s ease-in-out infinite}
 .hw-float{animation:hw-float 14s ease-in-out infinite}
 .hw-ghost.hw-float{animation-name:hw-ghost}
 .hw-flyer{left:-80px;animation:hw-fly 26s linear infinite;animation-delay:6s}
-.hw-wings{transform-box:fill-box;transform-origin:center;animation:hw-flap .35s ease-in-out infinite alternate}
+.hw-batbox{display:block;position:relative}.hw-batbox svg{position:absolute;left:0;top:0;display:block}
+.hw-wings{transform-origin:50% 38%;animation:hw-flap .35s ease-in-out infinite alternate}
 .hw-bat .hw-wings{animation-duration:.5s}
-.hw-goo{transform-origin:50% 0;animation:hw-stretch 8s ease-in-out infinite alternate}
+/* stepped (20 steps of ~0.25%): a smoothly scaling layer is re-rasterised with its glow filter every frame */
+.hw-goo{position:relative;transform-origin:50% 0;will-change:transform;animation:hw-stretch 8s steps(20) infinite alternate}
+.hw-goo svg{display:block}.hw-goo svg.hw-drop{position:absolute}
 .hw-drop{transform-box:fill-box;transform-origin:center;opacity:0;animation:hw-drop 9s ease-in infinite}
 .hw-card-deco{position:absolute!important;inset:0;pointer-events:none!important;z-index:5;overflow:visible}
 .hw-card-deco *{pointer-events:none!important}
 .hw-card-slime{position:absolute;top:-1px;right:-1px}
 .hw-card-slime svg,.hw-bar-slime svg{display:block}
 .hw-card-slime{border-top-right-radius:inherit;overflow:visible}
-.hw-pumpkin{position:absolute;right:18px;top:-22px;z-index:2;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
-.hw-pumpkin svg{position:relative;display:block}
+.hw-pumpkin{position:absolute;right:18px;top:-22px;z-index:2}
+.hw-pumpkin svg{position:relative;display:block}.hw-pumpkin .hw-pk-body{filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
+.hw-pumpkin svg.hw-face-glow{position:absolute;left:0;top:0}
 .hw-pk-halo{position:absolute;left:50%;top:58%;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;
   background:radial-gradient(circle,rgba(255,196,80,.55) 0,rgba(255,120,20,.28) 38%,rgba(255,90,0,0) 70%);
   animation:hw-breathe var(--d,3.2s) ease-in-out var(--dl,0s) infinite}
@@ -39,7 +44,7 @@
   44%{opacity:.95;transform:scale(1.1)}62%{opacity:.7;transform:scale(1)}66%{opacity:.82}100%{opacity:.35;transform:scale(.85)}}
 @keyframes hw-candle{0%{opacity:.15}30%{opacity:.8}35%{opacity:.45}44%{opacity:.95}58%{opacity:.6}61%{opacity:.75}100%{opacity:.15}}
 .hw-pumpkin .hw-face{opacity:.92}
-.hw-mini-ghost{position:absolute;right:30px;top:-22px;animation:hw-float 6s ease-in-out infinite;filter:drop-shadow(0 0 6px rgba(200,200,255,.7))}
+.hw-mini-ghost{position:absolute;right:30px;top:-22px;animation:hw-float 6s ease-in-out infinite}
 .hw-card-web{position:absolute;right:0;bottom:0;transform:scaleY(-1);opacity:.6}
 .hw-haunt{z-index:-1!important;opacity:1}
 .hw-haunt svg{position:absolute;left:2px;bottom:2px}
@@ -63,19 +68,19 @@
 }
 
 /* ---- gloom shader ---- */
-.hw-grade{inset:0;background:linear-gradient(160deg,rgba(70,40,110,.07),rgba(20,60,40,.05));backdrop-filter:saturate(.88)}
-.hw-vignette{inset:0;background:radial-gradient(ellipse 75% 70% at 50% 45%,transparent 55%,rgba(5,0,12,.55) 100%);animation:hw-dim 11s steps(1) infinite}
-.hw-fog{left:0;width:calc(100% + 1600px);background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='320'><filter id='n' x='0' y='0' width='100%' height='100%'><feTurbulence type='fractalNoise' baseFrequency='.005 .0125' numOctaves='3' seed='4' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .75 0 0 0 0 .77 0 0 0 0 .86 0 0 0 1.5 -.55'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");height:42%;bottom:0;background-repeat:repeat-x;background-position:0 100%;background-size:800px 100%;opacity:.15;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 55%,#000 88%,rgba(0,0,0,.6) 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 55%,#000 88%,rgba(0,0,0,.6) 100%);will-change:transform;animation:hw-fog 60s linear infinite}
+/* vignette + plain translucent colour grade in one layer (the grade used backdrop-filter:saturate, which
+   re-filtered the whole page on every frame and scroll) */
+.hw-vignette{inset:0;background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .03 0'/></filter><rect width='100%' height='100%' filter='url(%23g)'/></svg>"),radial-gradient(ellipse 75% 70% at 50% 45%,transparent 55%,rgba(5,0,12,.55) 100%),linear-gradient(160deg,rgba(70,40,110,.08),rgba(20,60,40,.06)),rgba(60,60,70,.04);animation:hw-dim 11s steps(1) infinite}
+.hw-fog{left:0;width:calc(100% + 1600px);background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='320' viewBox='0 0 800 320' preserveAspectRatio='none'><filter id='n' x='0' y='0' width='100%' height='100%'><feTurbulence type='fractalNoise' baseFrequency='.005 .0125' numOctaves='3' seed='4' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .75 0 0 0 0 .77 0 0 0 0 .86 0 0 0 1.5 -.55'/></filter><linearGradient id='f' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='%23fff' stop-opacity='0'/><stop offset='.55' stop-color='%23fff'/><stop offset='.88' stop-color='%23fff'/><stop offset='1' stop-color='%23fff' stop-opacity='.6'/></linearGradient><mask id='m'><rect width='100%' height='100%' fill='url(%23f)'/></mask><rect width='100%' height='100%' filter='url(%23n)' mask='url(%23m)'/></svg>");height:42%;bottom:0;background-repeat:repeat-x;background-position:0 100%;background-size:800px 100%;opacity:.15;will-change:transform;animation:hw-fog 60s linear infinite}
 .hw-fog2{height:32%;opacity:.11;animation-duration:95s;animation-direction:reverse}
-.hw-grain{inset:-80px;background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .6 0'/></filter><rect width='100%' height='100%' filter='url(%23g)'/></svg>");opacity:.05;animation:hw-grain .8s steps(4) infinite}
+/* film grain is baked into the vignette layer as a static tile (a separate, jittering full-viewport layer cost ~10% CPU to composite) */
 @keyframes hw-fog{from{transform:translateX(0)}to{transform:translateX(-1600px)}}
-@keyframes hw-grain{0%{transform:translate(0,0)}25%{transform:translate(-30px,20px)}50%{transform:translate(20px,-40px)}75%{transform:translate(-50px,-10px)}}
 @keyframes hw-dim{0%,100%{opacity:1}93%{opacity:.8}94%{opacity:1}96%{opacity:.85}}
 
 /* same-hue tight luminous halo hugging the slime */
-.hw-glow svg{filter:drop-shadow(0 0 1.2px rgba(var(--gc),.9)) drop-shadow(0 0 3.5px rgba(var(--gc),.45))}
-.hw-green-sp .hw-sp-body{filter:drop-shadow(0 0 3px rgba(108,195,56,.9))}
-.hw-mini-ghost,.hw-peek{filter:drop-shadow(0 0 6px rgba(190,170,255,.65))!important}
+.hw-glow svg.hw-slime{filter:drop-shadow(0 0 1.2px rgba(var(--gc),.9)) drop-shadow(0 0 3.5px rgba(var(--gc),.45))}
+.hw-green-sp .hw-sp-body svg{filter:drop-shadow(0 0 3px rgba(108,195,56,.9))}
+.hw-mini-ghost svg,.hw-peek svg{display:block;filter:drop-shadow(0 0 6px rgba(190,170,255,.65))}
 .hw-in-banner{position:absolute!important;right:92px!important;top:50%!important;margin-top:-15px;left:auto!important}
 .hw-mini-ghost.hw-in-banner{animation:none}
 .hw-card-tomb{position:absolute;right:20px;top:-22px}
@@ -83,13 +88,14 @@
 .hw-mini-ghost{right:44px!important;top:-20px!important}
 .hw-mini-ghost.hw-in-banner,.hw-pumpkin.hw-in-banner{right:104px!important;top:50%!important;margin-top:-14px}
 .hw-cardlayer{position:absolute;inset:0}
-.hw-card-deco.hw-ov,.hw-bar-slime.hw-ov{position:absolute!important;left:0;top:0;right:auto;bottom:auto;inset:auto;z-index:auto}
+.hw-card-deco.hw-ov,.hw-bar-slime.hw-ov{position:absolute!important;left:0;top:0;right:auto;bottom:auto;inset:auto;z-index:auto;will-change:transform}
 .hw-ov .hw-card-slime{right:-1px}
 
 /* ---- lights ---- */
-.hw-lights{left:0;top:0;filter:drop-shadow(0 0 3px rgba(168,85,247,.8)) drop-shadow(0 0 7px rgba(217,70,239,.35))}
+.hw-lights{left:0;top:0}
 .hw-lights svg{display:block}
-.hw-bulb{animation:hw-twinkle 3s ease-in-out infinite}
+.hw-ledge{position:absolute}
+.hw-bulbs{position:absolute;left:0;top:0;animation:hw-twinkle 3s ease-in-out infinite}
 @keyframes hw-twinkle{0%,100%{opacity:1}40%{opacity:.45}55%{opacity:.9}70%{opacity:.6}}
 .hw-ledge{animation:hw-lsway 6s ease-in-out infinite alternate}
 .hw-ledge-r{--sx:-1.5px;--sy:0;animation-delay:-1.5s}.hw-ledge-b{--sx:0;--sy:-1.5px;animation-delay:-3s}.hw-ledge-l{--sx:1.5px;--sy:0;animation-delay:-4.5s}
@@ -108,19 +114,19 @@
 .hw-cat svg{display:block;overflow:visible}
 .hw-cat-corner{left:96px;bottom:0}
 .hw-cat-card{position:absolute;right:58px;top:-38px}
-.hw-cat-tail{transform-box:fill-box;transform-origin:0% 90%;animation:hw-tail 3.6s ease-in-out infinite}
+.hw-cat svg.hw-cat-tail{position:absolute;left:0;top:0;animation:hw-tail 3.6s ease-in-out infinite}
 .hw-cat-head{transform-box:fill-box;transform-origin:50% 90%;transition:transform .5s ease-out}
-.hw-cat-eyes{transform-box:fill-box;transform-origin:50% 50%;animation:hw-blink 5.5s infinite;filter:drop-shadow(0 0 2px rgba(200,240,60,.9))}
-.hw-cat-card .hw-cat-tail{animation-duration:4.4s;animation-delay:-1.3s}.hw-cat-card .hw-cat-eyes{animation-delay:-2.7s}
+.hw-cat-eyes{transform-box:fill-box;transform-origin:50% 50%;filter:drop-shadow(0 0 2px rgba(200,240,60,.9))}
+.hw-cat-card svg.hw-cat-tail{animation-duration:4.4s;animation-delay:-1.3s}
 @keyframes hw-tail{0%,100%{transform:rotate(0)}30%{transform:rotate(-14deg)}60%{transform:rotate(8deg)}}
 @keyframes hw-blink{0%,93%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
 .hw-fleeing .hw-legs{animation-duration:.09s!important}
-@media (prefers-reduced-motion: reduce){.hw-witch,.hw-sparks{display:none}.hw-ledge,.hw-bulb,.hw-cat-tail,.hw-cat-eyes{animation:none!important}.hw-cat-head{transition:none}}
+@media (prefers-reduced-motion: reduce){.hw-witch,.hw-sparks{display:none}.hw-ledge,.hw-bulbs,.hw-cat-tail,.hw-cat-eyes{animation:none!important}.hw-cat-head{transition:none}}
 
 /* ---- skeletons ---- */
 .hw-skel svg{display:block;overflow:visible;filter:drop-shadow(0 0 4px rgba(235,230,215,.25))}
 .hw-skel-peek{left:62%;bottom:0;transform:translateY(100%);animation:hw-skel-rise 36s ease-in-out infinite;animation-delay:-14s}
-.hw-skel-peek .hw-skel-arm{transform-box:fill-box;transform-origin:0% 100%;animation:hw-skel-wave 36s ease-in-out infinite;animation-delay:-14s}
+.hw-skel-peek svg.hw-skel-arm{position:absolute;left:0;top:0;animation:hw-skel-wave 36s ease-in-out infinite;animation-delay:-14s}
 @keyframes hw-skel-rise{0%,62%{transform:translateY(100%)}67%,84%{transform:translateY(22%)}70%{transform:translateY(18%)}89%,100%{transform:translateY(100%)}}
 @keyframes hw-skel-wave{0%,68%{transform:rotate(0)}70%,74%,78%{transform:rotate(-24deg)}72%,76%,80%{transform:rotate(14deg)}82%,100%{transform:rotate(0)}}
 .hw-skel-hang{right:23%;top:4px;transform-origin:50% 0;animation:hw-skel-sway 4.6s ease-in-out infinite alternate}
@@ -141,14 +147,14 @@
 .hw-dirt{position:absolute;left:22px;bottom:2px}
 .hw-dirt i{position:absolute;width:4px;height:4px;border-radius:40%;background:#4a3a28;opacity:0;animation:hw-dirt 42s ease-out infinite;animation-delay:-20s}
 @keyframes hw-dirt{0%,59.5%{opacity:0;transform:translate(0,0)}60%{opacity:.9;transform:translate(0,0)}61.5%{opacity:.8;transform:translate(var(--dx),var(--dy))}63.5%,100%{opacity:0;transform:translate(calc(var(--dx) * 1.3),6px)}}
-.hw-zombie{left:0;top:0;opacity:0}
+.hw-zombie{left:0;top:0;opacity:0;will-change:transform,opacity}
 .hw-zombie svg{opacity:.8;filter:drop-shadow(0 0 3px rgba(110,160,60,.35))}
 /* ---- cauldron ---- */
 .hw-cauldron{right:150px;bottom:0}
 .hw-cauldron svg{display:block}
 .hw-steam{position:absolute;left:4px;top:-34px;width:70px;height:60px;border-radius:50%;background:radial-gradient(ellipse at 50% 70%,rgba(110,220,60,.32),rgba(110,220,60,0) 70%);animation:hw-steam 4s ease-in-out infinite}
 @keyframes hw-steam{0%,100%{opacity:.55;transform:translateY(0) scale(1)}50%{opacity:.95;transform:translateY(-5px) scale(1.08)}}
-.hw-bubble{transform-box:fill-box;transform-origin:50% 100%;animation:hw-bubble 3s ease-in infinite}
+.hw-cauldron svg.hw-bubble{position:absolute;transform-origin:50% 100%;animation:hw-bubble 3s ease-in infinite}
 @keyframes hw-bubble{0%{transform:translateY(4px) scale(.3);opacity:0}20%{opacity:1}75%{transform:translateY(-10px) scale(1);opacity:1}82%{transform:translateY(-12px) scale(1.35);opacity:0}100%{opacity:0}}
 /* ---- candy ---- */
 .hw-candy{bottom:2px;opacity:.9}
@@ -165,5 +171,14 @@
 /* ---- eyes ---- */
 .hw-eyes svg{display:block;filter:drop-shadow(0 0 4px rgba(255,220,80,.55))}
 .hw-eyes .hw-pupil,.hw-mummy .hw-pupil{transition:transform .25s ease-out}
-.hw-blinker{transform-box:fill-box;transform-origin:50% 50%;animation:hw-blink var(--bd,5s) infinite}
-@media (prefers-reduced-motion: reduce){.hw-flash,  .hw-steam,.hw-bubble,.hw-blinker{animation:none!important}.hw-pupil{transition:none!important}}
+.hw-blinker{transform-box:fill-box;transform-origin:50% 50%}
+/* SVG-internal blinks are short, timer-triggered animations (a looping one would keep the main thread rendering every frame) */
+.hw-blink-now{animation:hw-blink1 .38s ease-in-out}
+@keyframes hw-blink1{0%,100%{transform:scaleY(1)}28%{transform:scaleY(.1)}}
+/* free-standing eyes blink as a whole composited box; the glow filter stays inside, painted once */
+.hw-eyes{transform-origin:50% 50%;animation:hw-blink var(--bd,5s) infinite}.hw-eyes .hw-blinker{animation:none}
+@media (prefers-reduced-motion: reduce){.hw-flash,  .hw-steam,.hw-bubble,.hw-blinker,.hw-eyes{animation:none!important}.hw-pupil{transition:none!important}}
+/* ---- paused (tab hidden / window unfocused): freeze every animation so no frames are produced ---- */
+.hw-paused .hw-root,.hw-paused .hw-root *,.hw-paused .hw-card-deco,.hw-paused .hw-card-deco *{animation-play-state:paused!important}
+
+.hw-stack{position:relative;display:block}.hw-stack>svg{position:absolute;left:0;top:0}
